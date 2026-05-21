@@ -1,0 +1,35 @@
+// 케이스 설정 번들 (backend/app/cases.py 포팅). 코드 분기 아닌 데이터.
+
+export const CATEGORIES = {
+  self_harm: { label: "자해", floor: true, keywords: [
+    ["자해", 3], ["자살", 3], ["죽고 싶", 3], ["손목", 2],
+    ["사라지고 싶", 2], ["의미 없", 1], ["커터", 2], ["흉터", 2] ] },
+  abuse: { label: "아동학대", floor: true, keywords: [
+    ["멍", 2], ["맞았", 3], ["때렸", 3], ["방임", 2], ["굶", 2],
+    ["집에 가기 싫", 2], ["보호자", 1], ["학대", 3] ] },
+  violence: { label: "학교폭력", floor: false, keywords: [
+    ["괴롭", 2], ["따돌", 3], ["폭행", 3], ["협박", 2], ["욕설", 1],
+    ["빼앗", 2], ["때림", 2], ["놀림", 1], ["패", 2] ] },
+  special_ed: { label: "특수교육", floor: false, keywords: [
+    ["특수", 1], ["발달", 1], ["경계선", 1], ["ADHD", 1],
+    ["의사소통 어려", 1], ["개별화교육", 1], ["느린 학습", 1] ] },
+};
+
+export const GENERAL_FACTORS = [
+  ["결석", 2], ["지각", 1], ["혼자", 1], ["말이 없", 1], ["위축", 2],
+  ["고립", 2], ["점심을 거르", 1], ["울", 1], ["불안", 1], ["무기력", 2],
+];
+
+// floor 복합조합: 부분집합이 모두 활성이면 floor.
+export const FLOOR_COMBOS = [["special_ed", "violence"]];
+
+// 복합 상호작용 배수 (정확히 그 집합일 때).
+export const COMPOSITE_FACTORS = { "special_ed|violence": 1.5 };
+export const DEFAULT_COMPOSITE_FACTOR = 1.2;
+
+export const CASE_RESOURCES = {
+  self_harm: ["wee_class", "정신건강의학과", "정신건강복지센터"],
+  abuse: ["아동보호전문기관", "112_신고", "wee_class"],
+  violence: ["wee_class", "학교폭력대책심의위원회", "청소년상담복지센터"],
+  special_ed: ["특수교육지원센터", "wee_class"],
+};

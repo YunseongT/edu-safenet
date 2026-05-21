@@ -11,7 +11,7 @@ import "./App.css";
 const ROLES = ["교사", "업무담당교사", "관리자", "학생·학부모"];
 
 export default function App() {
-  const [role, setRole] = useState("담임교사");
+  const [role, setRole] = useState("교사");
   const [school, setSchool] = useState("A");
   const [students, setStudents] = useState([]);
   const [studentId, setStudentId] = useState(null);
