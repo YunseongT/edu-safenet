@@ -9,7 +9,13 @@ import { buildReport } from "./core/report";
 import { CASE_RESOURCES } from "./core/cases";
 import { store } from "./core/store";
 
-const STATIC = import.meta.env.VITE_STATIC === "1";
+const STATIC = 
+  import.meta.env.VITE_STATIC === "1" || 
+  (import.meta.env.PROD && !import.meta.env.VITE_API_BASE) ||
+  (typeof window !== "undefined" && 
+   window.location.hostname !== "localhost" && 
+   window.location.hostname !== "127.0.0.1" && 
+   !import.meta.env.VITE_API_BASE);
 
 // ---------- 정적(core) 구현 ----------
 const ok = (v) => Promise.resolve(v);

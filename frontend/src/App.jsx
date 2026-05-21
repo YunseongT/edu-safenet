@@ -32,16 +32,45 @@ export default function App() {
   const isGuardian = role === "학생·학부모";
   const canEdit = isTeacher;
 
-  useEffect(() => { api.students().then((s) => { setStudents(s); setStudentId(s[0]?.id); }); }, []);
-  useEffect(() => { api.config().then(setCfg).catch(() => {}); }, []);
+  useEffect(() => {
+    api.students()
+      .then((s) => {
+        if (Array.isArray(s)) {
+          setStudents(s);
+          setStudentId(s[0]?.id || null);
+        } else {
+          console.error("students is not an array:", s);
+        }
+      })
+      .catch((err) => {
+        console.error("Failed to fetch students:", err);
+      });
+  }, []);
+
+  useEffect(() => {
+    api.config()
+      .then(setCfg)
+      .catch((err) => {
+        console.error("Failed to fetch config:", err);
+      });
+  }, []);
+
   useEffect(() => { if (studentId) loadHistory(studentId); }, [studentId]);
 
   function loadHistory(id) {
-    api.journals(id).then((h) => {
-      setHistory(h);
-      const last = h.signals[h.signals.length - 1];
-      setViewing(last ? { rule: last.breakdown, llm_context: "", saved: true } : null);
-    });
+    api.journals(id)
+      .then((h) => {
+        if (h && Array.isArray(h.journals) && Array.isArray(h.signals)) {
+          setHistory(h);
+          const last = h.signals[h.signals.length - 1];
+          setViewing(last ? { rule: last.breakdown, llm_context: "", saved: true } : null);
+        } else {
+          console.error("journals history is invalid:", h);
+        }
+      })
+      .catch((err) => {
+        console.error("Failed to load history:", err);
+      });
   }
 
   function onText(v) {
