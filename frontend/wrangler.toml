@@ -1,0 +1,8 @@
+# Cloudflare Workers(정적 에셋) 배포 설정.
+# `npx wrangler deploy`가 ./dist를 정적 사이트로 업로드한다(별도 Worker 스크립트 불필요).
+name = "edu-safenet"
+compatibility_date = "2026-05-01"
+
+[assets]
+directory = "./dist"
+not_found_handling = "single-page-application"
