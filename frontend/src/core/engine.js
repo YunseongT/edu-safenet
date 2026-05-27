@@ -2,7 +2,7 @@
 import {
   CATEGORIES, GENERAL_FACTORS, FLOOR_COMBOS,
   COMPOSITE_FACTORS, DEFAULT_COMPOSITE_FACTOR,
-} from "./cases";
+} from "./cases.js";
 
 export const SCHOOL_PRESETS = {
   A: { name: "A학교(상담전문가·Wee 보유)", yellow: 4, red: 8 },
@@ -38,8 +38,10 @@ export function assess(text, school = "A") {
   }
   const adjusted = Math.round(raw * factor * 100) / 100;
 
+  // floor: 위해 유형 강신호(subscore>=3)만. 약/모호 키워드 단독 적색 오탐 방지.
+  const FLOOR_MIN = 3;
   const floorReasons = [];
-  for (const c of Object.values(categories)) if (c.floor) floorReasons.push(`${c.label} 신호 탐지`);
+  for (const c of Object.values(categories)) if (c.floor && c.subscore >= FLOOR_MIN) floorReasons.push(`${c.label} 신호 탐지`);
   for (const combo of FLOOR_COMBOS) {
     if (combo.every((c) => active.includes(c))) {
       floorReasons.push(`고위험 복합조합(${combo.map((c) => CATEGORIES[c].label).join(" + ")})`);

@@ -4,5 +4,6 @@ __pycache__/
 .venv/
 *.db
 backend/resource_cache.json
+backend/app/resource_cache.json
 .env
 .DS_Store

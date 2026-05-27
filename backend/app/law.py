@@ -1,7 +1,13 @@
 """케이스별 큐레이션 법령 — 실제 조문 요지 + 출처. 임베딩 없이 결정적 인용.
 
-실배포 시 국가법령정보 OpenAPI로 전체 색인(RAG) 전환. 데모는 핵심 조문 큐레이션.
+조문 요지는 큐레이션(결정적). 법제처 국가법령정보 공유서비스(data.go.kr 1170000)로
+법령 존재·공식 링크를 실시간 확인(live=True, 위원회 패키지 등 slow 경로에서만).
+키없음·실패 시 law.go.kr 검색 링크로 폴백(데모 안전).
 """
+import os
+import re
+
+import httpx
 
 LAW_BY_CATEGORY = {
     "self_harm": [
@@ -47,15 +53,87 @@ LAW_BY_CATEGORY = {
             "source": "국가법령정보센터",
         },
     ],
+    # 특정 유형 미분류 + 일반 위기신호(결석·위축·고립 등)만 있을 때의 기본 근거.
+    "general": [
+        {
+            "title": "학교보건법 제11조(치료 및 예방조치 등)",
+            "summary": "학교의 장은 학생의 신체적·정신적 건강에 문제가 있다고 인정되면 보호자와 협의하여 필요한 조치를 하여야 한다.",
+            "source": "국가법령정보센터",
+        },
+        {
+            "title": "초·중등교육법 제20조(교직원의 임무)",
+            "summary": "교원은 학생을 교육하고 생활을 지도한다 — 위기 징후 관찰 시 교내 상담 등 1차 지도 근거.",
+            "source": "국가법령정보센터",
+        },
+    ],
 }
 
 
-def laws_for(labels_by_id: dict) -> list[dict]:
+def _law_name(title: str) -> str:
+    """'학교폭력예방 및 대책에 관한 법률 제20조(...)' → 법령명만."""
+    return title.split(" 제")[0].split("(")[0].strip()
+
+
+def _search_link(title: str) -> str:
+    """법제처 국가법령정보 검색 링크(결정적 폴백)."""
+    from urllib.parse import quote
+    return f"https://www.law.go.kr/LSW/lsSc.do?menuId=1&query={quote(_law_name(title))}"
+
+
+def _key() -> str | None:
+    return os.getenv("LAW_API_KEY") or os.getenv("DATA_GO_KR_API_KEY")
+
+
+_LIVE_CACHE: dict[str, dict] = {}
+
+
+def _law_live(title: str) -> dict | None:
+    """법제처 1170000/law 실시간 검색 → {verified, link}. 키없음·실패 시 None.
+
+    operation/필드명은 서비스 스펙에 맞춰 보정 필요(추정 파싱, 실패 시 폴백)."""
+    key = _key()
+    if not key:
+        return None
+    name = _law_name(title)
+    if name in _LIVE_CACHE:
+        return _LIVE_CACHE[name]
+    endpoint = os.getenv("LAW_API_ENDPOINT", "https://apis.data.go.kr/1170000/law")
+    try:
+        # 파라미터: serviceKey·target=law·query·numOfRows·pageNo (type 주면 거부됨).
+        r = httpx.get(f"{endpoint}/lawSearchList.do",
+                      params={"serviceKey": key, "target": "law", "query": name,
+                              "numOfRows": 1, "pageNo": 1},
+                      timeout=4.0)
+        r.raise_for_status()
+        body = r.text
+        # resultCode 00 + 검색결과 존재 시 확인. 법령상세링크(DRF)를 공식 링크로 사용.
+        verified = "<resultCode>00</resultCode>" in body and "<법령상세링크>" in body
+        m = re.search(r"<법령상세링크>(/DRF/[^<]+)</법령상세링크>", body)
+        link = ("https://www.law.go.kr" + m.group(1).replace("&amp;", "&")) if m \
+            else _search_link(title)
+        result = {"verified": verified, "link": link}
+    except Exception:
+        result = None
+    _LIVE_CACHE[name] = result
+    return result
+
+
+def laws_for(labels_by_id: dict, live: bool = False) -> list[dict]:
+    """live=True면 법제처 API로 존재 확인·공식 링크 보강(slow 경로 전용)."""
     out, seen = [], set()
     for cat_id in labels_by_id:
         for law in LAW_BY_CATEGORY.get(cat_id, []):
             key = law["title"]
-            if key not in seen:
-                seen.add(key)
-                out.append({**law, "category": cat_id})
+            if key in seen:
+                continue
+            seen.add(key)
+            entry = {**law, "category": cat_id, "link": _search_link(law["title"])}
+            if live:
+                lv = _law_live(law["title"])
+                if lv:
+                    entry["link"] = lv["link"]
+                    entry["verified"] = lv["verified"]
+                    if lv["verified"]:
+                        entry["source"] = law["source"] + " · 법제처 실시간 확인"
+            out.append(entry)
     return out

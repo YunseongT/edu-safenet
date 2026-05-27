@@ -51,10 +51,12 @@ def assess(text: str, school: str = "A") -> dict:
         factor = COMPOSITE_FACTORS.get(frozenset(active), DEFAULT_COMPOSITE_FACTOR)
     adjusted = round(raw * factor, 2)
 
-    # 3) floor(OR): 위해 유형 활성 또는 지정 복합조합
+    # 3) floor(OR): 위해 유형 강신호(subscore>=3) 또는 지정 복합조합.
+    #    약/모호 키워드 단독으로 적색 오탐 방지(예: '멍이' 1회 ≠ 즉시 적색).
+    FLOOR_MIN = 3
     floor_reasons = []
     for cat_id, c in categories.items():
-        if c["floor"]:
+        if c["floor"] and c["subscore"] >= FLOOR_MIN:
             floor_reasons.append(f"{c['label']} 신호 탐지")
     for combo in FLOOR_COMBOS:
         if combo.issubset(active):

@@ -108,3 +108,16 @@ textarea { width: 100%; background: #0e0e0e; color: #eee; border: 1px solid #333
 .ps-deadline { font-size: 11px; background: #2d2d2d; color: #cda; padding: 1px 8px; border-radius: 4px; margin-left: 8px; }
 .ps-do { font-size: 13px; color: #cdd; margin-top: 3px; }
 .proto-src { font-size: 11px; color: #788; margin-top: 10px; }
+
+/* 자원 지도 (VWorld/Leaflet) — 위원회 패키지 */
+.rm-wrap { margin: 6px 0 14px; }
+.rm-map { height: 320px; width: 100%; border-radius: 8px; border: 1px solid #2a2a2a; background: #11161c; }
+.rm-pin span { display: block; width: 16px; height: 16px; border-radius: 50%; border: 2px solid #fff; }
+.rm-legend { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; margin-top: 8px; font-size: 12px; color: #bcc; }
+.rm-leg { display: inline-flex; align-items: center; gap: 5px; }
+.rm-leg i { width: 11px; height: 11px; border-radius: 50%; display: inline-block; border: 1px solid #fff3; }
+.rm-src { margin-left: auto; color: #788; font-size: 11px; }
+/* Leaflet 팝업 다크 대비 */
+.leaflet-popup-content { font-size: 12px; }
+
+.tagline { margin: 2px 0 0; font-size: 13px; color: #9fb3c8; font-style: italic; }

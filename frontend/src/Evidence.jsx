@@ -9,9 +9,11 @@ export default function Evidence({ data }) {
       {laws.length === 0 && <div className="muted">해당 유형 없음</div>}
       {laws.map((l) => (
         <div key={l.title} className="law">
-          <div className="law-t">{l.title}</div>
+          <div className="law-t">{l.link
+            ? <a href={l.link} target="_blank" rel="noreferrer">{l.title}</a>
+            : l.title}</div>
           <div className="law-s">{l.summary}</div>
-          <div className="law-src">출처: {l.source}</div>
+          <div className="law-src">출처: {l.source} · 법제처 국가법령정보</div>
         </div>
       ))}
 

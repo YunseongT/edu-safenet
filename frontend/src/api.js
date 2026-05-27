@@ -61,4 +61,16 @@ const backendApi = {
   protocols: (studentId) => jget(`/protocols${studentId ? `?student_id=${studentId}` : ""}`),
 };
 
-export const api = STATIC ? staticApi : backendApi;
+// 백엔드(터널) 호출 실패 시 브라우저 내 규칙엔진(core)으로 폴백 — 데모가 죽지 않게.
+function withFallback(primary, fallback) {
+  const out = {};
+  for (const k of Object.keys(primary)) {
+    out[k] = async (...args) => {
+      try { return await primary[k](...args); }
+      catch (e) { console.warn(`backend ${k} 실패 → core 폴백`, e); return fallback[k](...args); }
+    };
+  }
+  return out;
+}
+
+export const api = STATIC ? staticApi : withFallback(backendApi, staticApi);

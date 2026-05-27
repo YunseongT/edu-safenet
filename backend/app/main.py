@@ -154,20 +154,32 @@ def assess_only(body: AssessIn):
     return process(body.text, body.school)
 
 
+def _resources_and_laws(rule: dict, school: str, live: bool = False):
+    """규칙 분류 → 자원유형·법령. 특정 유형 없고 일반 위기신호만 있으면 기본 자원·근거로 폴백.
+
+    live=True면 법제처 실시간 확인(slow 경로 전용)."""
+    resource_kinds = []
+    for cat_id in rule["categories"]:
+        for k in CASE_RESOURCES.get(cat_id, []):
+            if k not in resource_kinds:
+                resource_kinds.append(k)
+    laws = laws_for(rule["categories"], live=live)
+    if not resource_kinds and rule["general_factors"]["score"] > 0:
+        # 유형 미분류 + 일반신호(결석·위축·고립 등) → 교내 상담 우선 기본 연계.
+        resource_kinds = ["wee_class", "청소년상담복지센터"]
+        laws = laws_for({"general": True}, live=live)
+    return resource_kinds, laws
+
+
 @app.post("/evidence")
 def evidence(body: AssessIn):
     """근거·자원 패널 — 규칙 분류 기준 법령 큐레이션 + 자원매칭(실시간+캐시폴백)."""
     rule = assess(body.text, body.school)
-    active = list(rule["categories"].keys())
-    resource_kinds = []
-    for cat_id in active:
-        for k in CASE_RESOURCES.get(cat_id, []):
-            if k not in resource_kinds:
-                resource_kinds.append(k)
+    resource_kinds, laws = _resources_and_laws(rule, body.school)
     return {
         "color": rule["color"],
         "labels": rule["labels"],
-        "laws": laws_for(rule["categories"]),
+        "laws": laws,
         "resources": match(resource_kinds, body.school),
     }
 
@@ -176,18 +188,13 @@ def evidence(body: AssessIn):
 def committee_package(body: AssessIn):
     """위기관리위원회 참고자료 패키지 — 신호등+법령+자원+보고서초안(검증패스) 묶음."""
     rule = assess(body.text, body.school)
-    active = list(rule["categories"].keys())
-    resource_kinds = []
-    for cat_id in active:
-        for k in CASE_RESOURCES.get(cat_id, []):
-            if k not in resource_kinds:
-                resource_kinds.append(k)
+    resource_kinds, laws = _resources_and_laws(rule, body.school, live=True)
     refined = refine(body.text)
     report = build_report(refined, rule)
     return {
         "signal": {"color": rule["color"], "score": rule["score"],
                    "labels": rule["labels"], "floor_reasons": rule["floor_reasons"]},
-        "laws": laws_for(rule["categories"]),
+        "laws": laws,
         "resources": match(resource_kinds, body.school),
         "report": report,
     }

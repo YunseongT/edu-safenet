@@ -55,8 +55,6 @@ export default function App() {
       });
   }, []);
 
-  useEffect(() => { if (studentId) loadHistory(studentId); }, [studentId]);
-
   function loadHistory(id) {
     api.journals(id)
       .then((h) => {
@@ -73,21 +71,28 @@ export default function App() {
       });
   }
 
-  function onText(v) {
+  useEffect(() => { if (studentId) loadHistory(studentId); }, [studentId]);
+
+  // sch 인자로 학교 프리셋을 명시 전달(학교 변경 시 stale 클로저 방지).
+  function onText(v, sch = school) {
     setText(v);
     clearTimeout(debounce.current);
     if (!v.trim()) { setLive(null); setEvidence(null); return; }
     debounce.current = setTimeout(async () => {
       try {
-        const r = await api.assess(v, school);
+        const r = await api.assess(v, sch);
         setLive(r);
-        if (isTeacher && r.rule.color === "red") setEvidence(await api.evidence(v, school));
+        if (isTeacher && r.rule.color === "red") setEvidence(await api.evidence(v, sch));
         else setEvidence(null);
       } catch { /* ignore */ }
     }, 450);
   }
 
-  useEffect(() => { if (text.trim()) onText(text); }, [school]);
+  // 학교 프리셋 변경 → 현재 입력 즉시 재평가(effect 대신 핸들러에서 처리).
+  function onSchoolChange(sch) {
+    setSchool(sch);
+    if (text.trim()) onText(text, sch);
+  }
 
   async function save() {
     if (!text.trim() || !studentId) return;
@@ -111,6 +116,7 @@ export default function App() {
       )}
       <header>
         <h1>Edu-SafeNet <small>위기학생 통합지원 · 온프레미스 데모</small></h1>
+        <p className="tagline">위기 학생을 지키고, 교사를 보호하고, 교육공동체의 신뢰를 떠받친다.</p>
         <div className="roles">
           {ROLES.map((r) => (
             <button key={r} className={role === r ? "on" : ""} onClick={() => setRole(r)}>{r}</button>
@@ -127,7 +133,7 @@ export default function App() {
           </label>
           {canEdit && (
             <label>학교 프리셋&nbsp;
-              <select value={school} onChange={(e) => setSchool(e.target.value)}>
+              <select value={school} onChange={(e) => onSchoolChange(e.target.value)}>
                 <option value="A">A학교 (상담·Wee 보유 · 임계값 높음)</option>
                 <option value="B">B학교 (상담자원 부족 · 임계값 낮음)</option>
               </select>

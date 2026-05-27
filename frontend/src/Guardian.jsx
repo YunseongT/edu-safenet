@@ -8,7 +8,12 @@ const C = { green: "#1f7a3a", yellow: "#c98a00", red: "#c0392b" };
 export default function Guardian({ studentId, studentName }) {
   const [hist, setHist] = useState({ journals: [], signals: [] });
   const [asked, setAsked] = useState(false);
-  useEffect(() => { if (studentId) api.journals(studentId).then(setHist); setAsked(false); }, [studentId]);
+  useEffect(() => {
+    if (!studentId) return;
+    let live = true;
+    api.journals(studentId).then((h) => { if (live) { setHist(h); setAsked(false); } });
+    return () => { live = false; };
+  }, [studentId]);
 
   const latest = hist.signals[hist.signals.length - 1];
   return (
