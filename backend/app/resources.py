@@ -108,7 +108,7 @@ def _fetch_live(kind: str) -> list[dict] | None:
                 "/getHospBasisList",
                 params={"serviceKey": _key("HIRA_API_KEY"), "_type": "json",
                         "dgsbjtCd": "23", "numOfRows": 50},
-                timeout=6.0)
+                timeout=9.0)
             r.raise_for_status()
             items = r.json()["response"]["body"]["items"]["item"]
             if isinstance(items, dict):

@@ -103,7 +103,7 @@ def _law_live(title: str) -> dict | None:
         r = httpx.get(f"{endpoint}/lawSearchList.do",
                       params={"serviceKey": key, "target": "law", "query": name,
                               "numOfRows": 1, "pageNo": 1},
-                      timeout=4.0)
+                      timeout=7.0)
         r.raise_for_status()
         body = r.text
         # resultCode 00 + 검색결과 존재 시 확인. 법령상세링크(DRF)를 공식 링크로 사용.
