@@ -9,6 +9,9 @@ LLM_MODEL = os.getenv("LLM_MODEL", "local-model")
 LLM_API_KEY = os.getenv("LLM_API_KEY", "")
 # reasoning_effort는 일부 제공자 전용 파라미터 → 설정된 경우에만 전송.
 LLM_REASONING_EFFORT = os.getenv("LLM_REASONING_EFFORT", "")
+# reasoning 모델(예: gemma-4-e4b)은 thinking에 토큰을 먼저 써 content가 빌 수 있다.
+# 설정 시 호출별 max_tokens의 하한으로 적용(content 산출 보장).
+LLM_MIN_MAX_TOKENS = int(os.getenv("LLM_MAX_TOKENS", "0") or 0)
 # 상시 데모(GPU 없는 호스트)에선 LLM_ENABLED=0 → 규칙 기반 폴백만 동작.
 LLM_ENABLED = os.getenv("LLM_ENABLED", "1") not in ("0", "false", "False", "")
 
@@ -33,7 +36,7 @@ def chat(prompt: str, *, system: str | None = None, max_tokens: int = 256,
     payload = {
         "model": LLM_MODEL,
         "messages": messages,
-        "max_tokens": max_tokens,
+        "max_tokens": max(max_tokens, LLM_MIN_MAX_TOKENS),
         "temperature": temperature,
     }
     if LLM_REASONING_EFFORT:
