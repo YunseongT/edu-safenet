@@ -22,37 +22,6 @@ def refine(raw_text: str) -> str:
         return raw_text  # LLM 실패 시 원본 보존
 
 
-def context_comment(raw_text: str, rule_result: dict) -> str:
-    labels = ", ".join(rule_result["labels"]) or "특이 유형 없음"
-    try:
-        return chat(
-            f"규칙(키워드) 엔진이 이 일지를 '{labels}'(위험도 {rule_result['color']})로 보았다. "
-            "규칙은 키워드 기반이라 의미·맥락(예: 기물 파손·이상행동·문학작품이 암시하는 정서위기 등)을 "
-            "놓칠 수 있다. 규칙이 과소평가했을 가능성이 있으면 '⚠ 보조의견:'으로 시작해 무엇을/왜 "
-            "한 문장으로 지적하고, 없으면 '특이사항 없음'이라고만 답해라. 신호등 색은 바꾸지 말 것"
-            f"(보조 의견일 뿐 최종 분류는 규칙·사람):\n{raw_text}",
-            system=_SYS, max_tokens=120,
-        )
-    except Exception:
-        return ""
-
-
-def suggest_labels(raw_text: str, rule_labels: list[str]) -> list[str]:
-    """LLM이 규칙이 놓친 유형을 보조 제안. floor·최종은 규칙이 결정하므로 참고용."""
-    catalog = ", ".join(f"{c['label']}" for c in CATEGORIES.values())
-    try:
-        out = chat(
-            f"다음 일지에 해당할 수 있는 유형을 [{catalog}] 중에서만 골라 쉼표로 나열해줘. "
-            f"없으면 '없음':\n{raw_text}",
-            system=_SYS, max_tokens=40,
-        )
-        label_set = {c["label"] for c in CATEGORIES.values()}
-        return [x.strip() for x in out.replace("\n", ",").split(",")
-                if x.strip() in label_set and x.strip() not in rule_labels]
-    except Exception:
-        return []
-
-
 def analyze_once(raw_text: str, rule_result: dict) -> dict:
     """저장 경로용 LLM 호출. 지연을 줄이기 위해 정제·맥락 코멘트를 한 번에 받는다."""
     labels = ", ".join(rule_result["labels"]) or "특이 유형 없음"

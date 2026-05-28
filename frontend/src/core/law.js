@@ -31,17 +31,24 @@ export const LAW_BY_CATEGORY = {
   ],
 };
 
-// 법제처 국가법령정보 검색 링크(결정적). 향후 LAW_API_KEY로 조문 본문 RAG 전환.
-function lawLink(title) {
-  const name = title.split(" 제")[0].split("(")[0].trim();
-  return `https://www.law.go.kr/LSW/lsSc.do?menuId=1&query=${encodeURIComponent(name)}`;
+const lawName = (title) => title.split(" 제")[0].split("(")[0].trim();
+
+// 법제처 국가법령정보 조문 딥링크: /법령/{명}/제N조 — 클릭 시 해당 조문이 바로 열린다.
+function lawLink(name, title) {
+  if (!name) return `https://www.law.go.kr/LSW/lsSc.do?menuId=1&query=${encodeURIComponent(lawName(title))}`;
+  const art = (title.match(/제(\d+)조/) || [])[1];
+  return `https://www.law.go.kr/법령/${name.replace(/ /g, "")}` + (art ? `/제${art}조` : "");
 }
 
 export function lawsFor(categories) {
   const out = [], seen = new Set();
   for (const id of Object.keys(categories)) {
+    let prevName = null;
     for (const law of (LAW_BY_CATEGORY[id] || [])) {
-      if (!seen.has(law.title)) { seen.add(law.title); out.push({ ...law, category: id, link: lawLink(law.title) }); }
+      // '동법'은 같은 카테고리 직전 법령명을 상속.
+      const name = (law.title.startsWith("동법") && prevName) ? prevName : lawName(law.title);
+      prevName = name;
+      if (!seen.has(law.title)) { seen.add(law.title); out.push({ ...law, category: id, link: lawLink(name, law.title) }); }
     }
   }
   return out;

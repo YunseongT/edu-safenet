@@ -55,7 +55,10 @@ textarea { width: 100%; background: #0e0e0e; color: #eee; border: 1px solid #333
 .deid { background: #0e0e0e; border: 1px dashed #2d6cdf; border-radius: 6px; padding: 10px; font-size: 13px; }
 
 .pkg-btn { width: 100%; background: #7a1f5a; color: #fff; border: 0; padding: 12px; border-radius: 8px; font-size: 15px; cursor: pointer; margin-bottom: 12px; }
-.pkg-btn:disabled { background: #444; }
+.pkg-btn:disabled { background: #444; cursor: progress; }
+.pkg-btn.busy { display: flex; align-items: center; justify-content: center; gap: 10px; }
+.spinner { width: 16px; height: 16px; border: 2px solid rgba(255,255,255,.35); border-top-color: #fff; border-radius: 50%; display: inline-block; animation: spin .7s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
 .pkg-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.7); display: flex; align-items: flex-start; justify-content: center; padding: 30px; overflow: auto; z-index: 50; }
 .pkg { background: #16171d; border: 1px solid #333; border-radius: 12px; padding: 20px; max-width: 760px; width: 100%; }
 .pkg-head { display: flex; justify-content: space-between; align-items: center; }
