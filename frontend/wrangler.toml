@@ -6,3 +6,8 @@ compatibility_date = "2026-05-01"
 [assets]
 directory = "./dist"
 not_found_handling = "single-page-application"
+
+# 커스텀 도메인(yunseongt.com 존이 동일 CF 계정) — wrangler가 DNS·인증서 자동 생성.
+[[routes]]
+pattern = "safenet.yunseongt.com"
+custom_domain = true
