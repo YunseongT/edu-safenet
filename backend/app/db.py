@@ -43,3 +43,10 @@ def init_db() -> None:
             );
             """
         )
+        # 교사 소견(이의·동의·대응 사유) 기록 컬럼 — 기존 DB에도 더해질 수 있게 ALTER.
+        # 신호등 색은 규칙이 고정하되, 교사 판단은 감사기록으로 남긴다.
+        for col in ("teacher_note TEXT", "note_at TEXT"):
+            try:
+                conn.execute(f"ALTER TABLE signal_history ADD COLUMN {col}")
+            except sqlite3.OperationalError:
+                pass  # 이미 존재

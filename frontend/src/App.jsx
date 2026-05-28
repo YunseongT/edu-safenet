@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "./api";
 import Signal from "./Signal";
 import Evidence from "./Evidence";
@@ -24,6 +24,8 @@ export default function App() {
   const [history, setHistory] = useState({ journals: [], signals: [] });
   const [busy, setBusy] = useState(false);
   const [advisory, setAdvisory] = useState("");  // 저장 시 LLM 보조의견(규칙이 놓친 의미·맥락)
+  const [note, setNote] = useState("");          // 교사 소견(이의·동의·대응 사유) 입력
+  const [noteSaving, setNoteSaving] = useState(false);
   const [cfg, setCfg] = useState({ llm_enabled: true, demo_mode: false });
   const debounce = useRef(null);
 
@@ -56,13 +58,20 @@ export default function App() {
       });
   }, []);
 
-  function loadHistory(id) {
+  const loadHistory = useCallback((id) => {
     api.journals(id)
       .then((h) => {
         if (h && Array.isArray(h.journals) && Array.isArray(h.signals)) {
           setHistory(h);
-          const last = h.signals[h.signals.length - 1];
-          setViewing(last ? { rule: last.breakdown, llm_context: "", saved: true } : null);
+          const li = h.signals.length - 1;
+          const last = h.signals[li];
+          const lastJ = h.journals[li];  // 신호와 같은 인덱스의 일지(배열 길이 어긋남 방지)
+          const next = last ? { rule: last.breakdown, llm_context: "", saved: true,
+            text: lastJ ? (lastJ.refined_text || lastJ.raw_text) : "",
+            signalId: last.id, teacher_note: last.teacher_note, note_at: last.note_at,
+            school: last.breakdown?.school?.key || school } : null;
+          setViewing(next);
+          setNote(next?.teacher_note || "");
         } else {
           console.error("journals history is invalid:", h);
         }
@@ -70,9 +79,19 @@ export default function App() {
       .catch((err) => {
         console.error("Failed to load history:", err);
       });
-  }
+  }, [school]);
 
-  useEffect(() => { if (studentId) loadHistory(studentId); }, [studentId]);
+  useEffect(() => { if (studentId) loadHistory(studentId); }, [studentId, loadHistory]);
+
+  async function saveNote() {
+    if (viewing?.signalId == null) return;
+    setNoteSaving(true);
+    try {
+      const res = await api.signalNote(viewing.signalId, note);
+      setViewing({ ...viewing, teacher_note: note, note_at: res.note_at });
+      loadHistory(studentId);
+    } finally { setNoteSaving(false); }
+  }
 
   // sch 인자로 학교 프리셋을 명시 전달(학교 변경 시 stale 클로저 방지).
   function onText(v, sch = school) {
@@ -84,7 +103,7 @@ export default function App() {
       try {
         const r = await api.assess(v, sch);
         setLive(r);
-        if (isTeacher && r.rule.color === "red") setEvidence(await api.evidence(v, sch));
+        if (isTeacher && isCrisis(r.rule.color)) setEvidence(await api.evidence(v, sch));
         else setEvidence(null);
       } catch { /* ignore */ }
     }, 450);
@@ -109,6 +128,29 @@ export default function App() {
   }
 
   const studentName = students.find((s) => s.id === studentId)?.display_name || "";
+
+  // 위기수준별 패키지 라벨: 적색=위원회 자료, 황색=사안 검토 자료. 녹색은 패키지 없음(과잉대응 방지).
+  const pkgLabel = (color) => color === "red" ? "위기관리위원회 참고자료 패키지" : "사안 검토 참고자료 패키지";
+  const isCrisis = (color) => color === "red" || color === "yellow";
+
+  async function genPackage(text, school) {
+    if (!text) return;
+    setPkgBusy(true);
+    try { setPkg(await api.package(text, school)); } finally { setPkgBusy(false); }
+  }
+
+  // 교사 탭: 표시 중 신호(라이브 또는 저장된 과거) 기준.
+  const shown = live || viewing;
+  const shownColor = shown?.rule?.color;
+  const pkgText = live ? text : (viewing?.text || "");
+
+  // 업무담당교사 탭: 학생의 최근 저장 신호 기준(라이브 입력 없음).
+  const li = history.signals.length - 1;
+  const lastSig = history.signals[li];
+  const lastJournal = history.journals[li];
+  const lastColor = lastSig?.color;
+  const lastText = lastJournal ? (lastJournal.refined_text || lastJournal.raw_text) : "";
+  const lastSchool = lastSig?.breakdown?.school?.key || "A";
 
   return (
     <div className="app">
@@ -148,7 +190,21 @@ export default function App() {
 
       {isAdmin && <Dashboard />}
 
-      {isStaff && <Protocols studentId={studentId} studentName={studentName} />}
+      {isStaff && (
+        <>
+          {isCrisis(lastColor) && lastText && (
+            <div className="evidence-wrap">
+              <button className="pkg-btn" disabled={pkgBusy} onClick={() => genPackage(lastText, lastSchool)}>
+                {pkgBusy ? "패키지 생성 중..." : pkgLabel(lastColor) + " 생성"}
+              </button>
+              <div className="muted" style={{ marginTop: 6 }}>
+                {studentName} 최근 저장 신호({lastColor}) 기준 · {lastColor === "red" ? "위원회 제출 자료 준비" : "담당자 사안 검토 자료 준비"}
+              </div>
+            </div>
+          )}
+          <Protocols studentId={studentId} studentName={studentName} />
+        </>
+      )}
 
       {isGuardian && <Guardian studentId={studentId} studentName={studentName} />}
 
@@ -168,11 +224,20 @@ export default function App() {
                 {history.journals.length === 0 && <div className="muted">아직 기록 없음</div>}
                 {history.journals.map((j, i) => (
                   <div key={j.id} className="tl-item clickable"
-                    onClick={() => setViewing({ rule: history.signals[i].breakdown, llm_context: "", saved: true })}>
+                    onClick={() => {
+                      const sig = history.signals[i];
+                      const next = { rule: sig.breakdown, llm_context: "", saved: true,
+                        text: j.refined_text || j.raw_text,
+                        signalId: sig.id, teacher_note: sig.teacher_note,
+                        note_at: sig.note_at, school: sig.breakdown?.school?.key || school };
+                      setViewing(next);
+                      setNote(next.teacher_note || "");
+                    }}>
                     <span className={`dot ${history.signals[i]?.color}`} />
                     <div>
                       <div className="tl-text">{j.refined_text || j.raw_text}</div>
-                      <div className="tl-meta">{j.created_at} · {history.signals[i]?.color} {history.signals[i]?.score}점</div>
+                      <div className="tl-meta">{j.created_at} · {history.signals[i]?.color} {history.signals[i]?.score}점
+                        {history.signals[i]?.teacher_note && <span className="note-flag"> · 📝 교사 소견</span>}</div>
                     </div>
                   </div>
                 ))}
@@ -188,18 +253,30 @@ export default function App() {
                   <div className="advisory-note">※ AI 보조 의견 — 규칙이 놓쳤을 수 있는 맥락. 신호등 색은 규칙·사람이 최종 결정.</div>
                 </div>
               )}
+
+              {viewing?.saved && viewing.signalId != null && (
+                <div className="teacher-note">
+                  <h3>교사 소견 <small className="muted">· 이의 / 동의 / 대응·무시 사유</small></h3>
+                  <textarea value={note} onChange={(e) => setNote(e.target.value)} rows={3}
+                    placeholder="신호등 색은 규칙으로 고정됩니다. 교사의 판단·이의·후속 대응(또는 미대응) 사유를 기록으로 남기세요." />
+                  <div className="tn-row">
+                    <button className="tn-save" disabled={noteSaving} onClick={saveNote}>
+                      {noteSaving ? "기록 중..." : "소견 기록"}
+                    </button>
+                    {viewing.note_at && <span className="muted">최근 기록: {viewing.note_at}</span>}
+                  </div>
+                  <div className="advisory-note">※ 색을 바꾸지 않습니다. 교사 판단은 감사기록으로 남아 책임을 명확히 합니다.</div>
+                </div>
+              )}
             </section>
           </main>
 
-          {evidence && (
+          {isCrisis(shownColor) && pkgText && (
             <div className="evidence-wrap">
-              <button className="pkg-btn" disabled={pkgBusy} onClick={async () => {
-                setPkgBusy(true);
-                try { setPkg(await api.package(text, school)); } finally { setPkgBusy(false); }
-              }}>
-                {pkgBusy ? "패키지 생성 중..." : "위기관리위원회 참고자료 패키지 생성"}
+              <button className="pkg-btn" disabled={pkgBusy} onClick={() => genPackage(pkgText, live ? school : (viewing?.school || school))}>
+                {pkgBusy ? "패키지 생성 중..." : pkgLabel(shownColor) + " 생성"}
               </button>
-              <Evidence data={evidence} />
+              {evidence && <Evidence data={evidence} />}
             </div>
           )}
         </>

@@ -73,8 +73,8 @@ def journals(student_id: int):
             "SELECT id, raw_text, refined_text, created_at FROM journal "
             "WHERE student_id=? ORDER BY id", (student_id,)).fetchall()
         sigs = conn.execute(
-            "SELECT score, color, breakdown_json, created_at FROM signal_history "
-            "WHERE student_id=? ORDER BY id", (student_id,)).fetchall()
+            "SELECT id, score, color, breakdown_json, created_at, teacher_note, note_at "
+            "FROM signal_history WHERE student_id=? ORDER BY id", (student_id,)).fetchall()
     return {
         "journals": [dict(r) for r in rows],
         "signals": [{**dict(s), "breakdown": json.loads(s["breakdown_json"])} for s in sigs],
@@ -141,6 +141,23 @@ def add_journal(body: JournalIn):
              json.dumps(result["rule"], ensure_ascii=False), now))
         jid = cur.lastrowid
     return {"journal_id": jid, "created_at": now, **result}
+
+
+class NoteIn(BaseModel):
+    note: str
+
+
+@app.post("/signals/{signal_id}/note")
+def set_signal_note(signal_id: int, body: NoteIn):
+    """교사 소견 기록 — 신호등 색은 규칙이 고정. 교사의 이의·동의·대응 사유만 감사기록으로 남긴다."""
+    now = datetime.now().isoformat(timespec="seconds")
+    with get_conn() as conn:
+        cur = conn.execute(
+            "UPDATE signal_history SET teacher_note=?, note_at=? WHERE id=?",
+            (body.note, now, signal_id))
+        if cur.rowcount == 0:
+            raise HTTPException(status_code=404, detail="signal not found")
+    return {"ok": True, "signal_id": signal_id, "teacher_note": body.note, "note_at": now}
 
 
 class AssessIn(BaseModel):

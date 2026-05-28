@@ -32,6 +32,7 @@ const staticApi = {
   config: () => ok({ llm_enabled: false, demo_mode: true }),
   assess: (text, school) => ok({ refined_text: text, rule: assess(text, school), llm_context: "", llm_suggested_labels: [] }),
   addJournal: (id, text, school) => { store.addJournal(id, text, school); return ok({ ok: true }); },
+  signalNote: (sigId, note) => { const s = store.addNote(sigId, note); return ok({ ok: !!s, signal_id: sigId, teacher_note: note, note_at: s ? s.note_at : null }); },
   evidence: (text, school) => { const r = assess(text, school);
     return ok({ color: r.color, labels: r.labels, laws: lawsFor(r.categories), resources: match(resourceKinds(r.categories), school) }); },
   package: (text, school) => { const r = assess(text, school);
@@ -55,6 +56,7 @@ const backendApi = {
   config: () => jget("/config"),
   assess: (text, school) => jpost("/assess", { text, school }),
   addJournal: (id, text, school) => jpost("/journals", { student_id: id, text, school }),
+  signalNote: (sigId, note) => jpost(`/signals/${sigId}/note`, { note }),
   evidence: (text, school) => jpost("/evidence", { text, school }),
   package: (text, school) => jpost("/package", { text, school }),
   dashboard: () => jget("/dashboard"),

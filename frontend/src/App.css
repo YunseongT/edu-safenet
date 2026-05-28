@@ -125,3 +125,10 @@ textarea { width: 100%; background: #0e0e0e; color: #eee; border: 1px solid #333
 /* AI 보조 의견 (규칙이 놓친 의미·맥락, 색은 안 바꿈) */
 .advisory { margin-top: 10px; padding: 10px 12px; border-radius: 8px; background: #2a2410; border: 1px solid #6b5d1f; color: #e8d98a; font-size: 13px; }
 .advisory-note { margin-top: 6px; font-size: 11px; color: #b0a560; }
+
+.teacher-note { margin-top: 14px; padding: 12px; border-radius: 8px; background: #11161f; border: 1px solid #2a3550; }
+.teacher-note h3 { margin: 0 0 8px; font-size: 14px; }
+.tn-row { display: flex; align-items: center; gap: 10px; margin-top: 8px; }
+.tn-save { background: #2d6cdf; color: #fff; border: 0; padding: 8px 14px; border-radius: 6px; cursor: pointer; font-size: 13px; }
+.tn-save:disabled { background: #333; cursor: not-allowed; }
+.note-flag { color: #7fa7ff; }

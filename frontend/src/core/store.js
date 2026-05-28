@@ -35,7 +35,7 @@ function init() {
     const r = assess(text, school);
     const created = ts(i);
     records[sid].journals.push({ id: ++_seq, raw_text: text, refined_text: text, created_at: created });
-    records[sid].signals.push({ score: r.score, color: r.color, breakdown: r, created_at: created });
+    records[sid].signals.push({ id: ++_seq, score: r.score, color: r.color, breakdown: r, created_at: created, teacher_note: null, note_at: null });
   });
 }
 init();
@@ -48,8 +48,15 @@ export const store = {
     const r = assess(text, school);
     const created = new Date().toISOString().slice(0, 19);
     records[id].journals.push({ id: ++_seq, raw_text: text, refined_text: text, created_at: created });
-    records[id].signals.push({ score: r.score, color: r.color, breakdown: r, created_at: created });
+    records[id].signals.push({ id: ++_seq, score: r.score, color: r.color, breakdown: r, created_at: created, teacher_note: null, note_at: null });
     return r;
+  },
+  addNote: (sigId, note) => {
+    for (const id in records) {
+      const s = records[id].signals.find((x) => x.id === sigId);
+      if (s) { s.teacher_note = note; s.note_at = new Date().toISOString().slice(0, 19); return s; }
+    }
+    return null;
   },
   dashboard: () => {
     const rows = STUDENTS.map((s) => {

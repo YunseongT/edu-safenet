@@ -3,11 +3,12 @@ import ResourceMap from "./ResourceMap";
 export default function Package({ data, onClose }) {
   if (!data) return null;
   const v = data.report.verification;
+  const title = data.signal.color === "red" ? "위기관리위원회 참고자료 패키지" : "사안 검토 참고자료 패키지";
   return (
     <div className="pkg-overlay" onClick={onClose}>
       <div className="pkg" onClick={(e) => e.stopPropagation()}>
         <div className="pkg-head">
-          <h2>위기관리위원회 참고자료 패키지</h2>
+          <h2>{title}</h2>
           <button onClick={onClose}>닫기</button>
         </div>
 
@@ -43,7 +44,7 @@ export default function Package({ data, onClose }) {
           <div key={i} className="pkg-law">· [교외] {e.kind} ({e.source_mode}) — {e.items.length}건</div>
         ))}
 
-        <div className="pkg-note">※ 본 패키지는 위원회 '검토 자료'다. 최종 결정은 위원회(사람)가 한다.</div>
+        <div className="pkg-note">※ 본 패키지는 {data.signal.color === "red" ? "위원회" : "담당자"} '검토 자료'다. 최종 결정은 사람이 한다.</div>
       </div>
     </div>
   );
