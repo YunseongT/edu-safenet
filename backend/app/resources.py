@@ -5,6 +5,9 @@
 
 실 API: HIRA 병원정보 · 여가부 청소년상담복지센터 · VWorld 지오코딩(주소→좌표).
 data.go.kr 공통 일반 인증키는 DATA_GO_KR_API_KEY로 받고, 서비스별 키가 따로 있으면 우선.
+
+지역(시군구) 프리셋으로 통학구역 중심을 바꾸면, 외부 자원은 그 중심 기준 거리순·
+근접 표시된다(HIRA 실시간은 전국 응답을 중심 기준 정렬, 캐시 폴백은 중심 주변 시드).
 """
 import json
 import math
@@ -15,8 +18,21 @@ import httpx
 
 CACHE_PATH = Path(__file__).resolve().parent / "resource_cache.json"
 
-# 통학구역 중심(=학교 비식별 좌표). 외부 자원은 이 중심 기준으로 표시(데모 좌표).
-SCHOOL_CENTER = [37.5012, 127.0396]
+# 지역(시군구) 프리셋 — 통학구역 중심(=학교 비식별 좌표). 권역별 데모 5종.
+REGIONS = {
+    "seoul_gangnam":  {"label": "서울 강남구",  "center": [37.5012, 127.0396]},
+    "gyeonggi_suwon": {"label": "경기 수원시",  "center": [37.2636, 127.0286]},
+    "daejeon_seo":    {"label": "대전 서구",    "center": [36.3550, 127.3839]},
+    "gangwon_chuncheon": {"label": "강원 춘천시", "center": [37.8813, 127.7300]},
+    "busan_haeundae": {"label": "부산 해운대구", "center": [35.1631, 129.1635]},
+}
+DEFAULT_REGION = "seoul_gangnam"
+# 하위호환: 기본 중심(강남) 참조용.
+SCHOOL_CENTER = REGIONS[DEFAULT_REGION]["center"]
+
+
+def region_center(region: str | None) -> list[float]:
+    return REGIONS.get(region or DEFAULT_REGION, REGIONS[DEFAULT_REGION])["center"]
 
 
 def _key(name: str) -> str | None:
@@ -33,46 +49,56 @@ SCHOOL_INTERNAL = {
 }
 
 
-# 캐시(=마지막 성공 응답 또는 시드). 외부 API 죽어도 이걸로 표시.
+# 자원유형별 중심 대비 좌표 오프셋(시드). 지역을 바꿔도 중심 주변에 그려지게 상대좌표로 둔다.
+_SEED_OFFSETS = {
+    "정신건강의학과": [
+        {"name": "○○정신건강의학과의원", "tel": "공개정보",
+         "source": "HIRA 병원정보(캐시)", "d": (0.0073, 0.0094), "group": "medical"},
+    ],
+    "정신건강복지센터": [
+        {"name": "○○구 정신건강복지센터", "tel": "1577-0199",
+         "source": "공공데이터(캐시)", "d": (-0.0032, 0.0164), "group": "medical"},
+    ],
+    "아동보호전문기관": [
+        {"name": "○○지역 아동보호전문기관", "tel": "112 / 1391",
+         "source": "공공데이터(캐시)", "d": (-0.0252, -0.0096), "group": "child"},
+    ],
+    "청소년상담복지센터": [
+        {"name": "○○시 청소년상담복지센터(CYS-Net)", "tel": "1388",
+         "source": "여가부(캐시)", "d": (0.0168, -0.0146), "group": "counsel"},
+    ],
+    "특수교육지원센터": [
+        {"name": "○○교육지원청 특수교육지원센터", "tel": "공개정보",
+         "source": "공공데이터(캐시)", "d": (0.0288, 0.0204), "group": "special"},
+    ],
+}
+
+
+def _dist_km(lat: float, lng: float, center: list[float]) -> float:
+    """통학구역 중심에서의 거리(km) — 하버사인."""
+    a, b = center[0], center[1]
+    p = math.pi / 180
+    h = (math.sin((lat - a) * p / 2) ** 2
+         + math.cos(a * p) * math.cos(lat * p) * math.sin((lng - b) * p / 2) ** 2)
+    return round(2 * 6371 * math.asin(math.sqrt(h)), 1)
+
+
+# 캐시(=마지막 성공 응답). 지역별로 분리 저장(권역 바뀌어도 섞이지 않게).
 def _load_cache() -> dict:
     if CACHE_PATH.exists():
         return json.loads(CACHE_PATH.read_text(encoding="utf-8"))
     return {}
 
 
-# 자원유형별 데모 좌표/지도그룹. 실시간 호출 성공 시 주소→좌표 지오코딩으로 대체.
-def _seed_cache() -> dict:
-    return {
-        "정신건강의학과": [
-            {"name": "○○정신건강의학과의원", "addr": "통학구역 인근 1.2km", "tel": "공개정보",
-             "source": "HIRA 병원정보(캐시)", "lat": 37.5085, "lng": 127.0490, "group": "medical"},
-        ],
-        "정신건강복지센터": [
-            {"name": "○○구 정신건강복지센터", "addr": "구청 인근 2.0km", "tel": "1577-0199",
-             "source": "공공데이터(캐시)", "lat": 37.4980, "lng": 127.0560, "group": "medical"},
-        ],
-        "아동보호전문기관": [
-            {"name": "○○지역 아동보호전문기관", "addr": "관할 3.1km", "tel": "112 / 1391",
-             "source": "공공데이터(캐시)", "lat": 37.4760, "lng": 127.0300, "group": "child"},
-        ],
-        "청소년상담복지센터": [
-            {"name": "○○시 청소년상담복지센터(CYS-Net)", "addr": "시내 2.5km", "tel": "1388",
-             "source": "여가부(캐시)", "lat": 37.5180, "lng": 127.0250, "group": "counsel"},
-        ],
-        "특수교육지원센터": [
-            {"name": "○○교육지원청 특수교육지원센터", "addr": "교육지원청 4.0km", "tel": "공개정보",
-             "source": "공공데이터(캐시)", "lat": 37.5300, "lng": 127.0600, "group": "special"},
-        ],
-    }
-
-
-def _dist_km(lat: float, lng: float) -> float:
-    """통학구역 중심에서의 거리(km) — 하버사인."""
-    a, b = SCHOOL_CENTER[0], SCHOOL_CENTER[1]
-    p = math.pi / 180
-    h = (math.sin((lat - a) * p / 2) ** 2
-         + math.cos(a * p) * math.cos(lat * p) * math.sin((lng - b) * p / 2) ** 2)
-    return round(2 * 6371 * math.asin(math.sqrt(h)), 1)
+def _seed_for(kind: str, center: list[float]) -> list[dict]:
+    """중심 좌표 주변에 배치한 시드 자원(외부 API 죽거나 키없을 때 폴백)."""
+    out = []
+    for s in _SEED_OFFSETS.get(kind, []):
+        lat, lng = center[0] + s["d"][0], center[1] + s["d"][1]
+        out.append({"name": s["name"], "addr": f"통학구역 중심 인근 약 {_dist_km(lat, lng, center)}km",
+                    "tel": s["tel"], "source": s["source"],
+                    "lat": lat, "lng": lng, "group": s["group"]})
+    return out
 
 
 def _geocode(addr: str) -> tuple[float, float] | None:
@@ -96,18 +122,20 @@ def _geocode(addr: str) -> tuple[float, float] | None:
     return None
 
 
-def _fetch_live(kind: str) -> list[dict] | None:
-    """실시간 호출 시도. 키 없거나 실패 시 None → 호출부가 캐시로 폴백."""
+def _fetch_live(kind: str, center: list[float]) -> list[dict] | None:
+    """실시간 호출 시도. 키 없거나 실패 시 None → 호출부가 캐시로 폴백.
+
+    center 기준 거리순 정렬·근접 표시(지역 프리셋 반영)."""
     if kind == "정신건강의학과" and _key("HIRA_API_KEY"):
         try:
             # HIRA 위치기반(radius) 호출은 서버측 계산이 느려 타임아웃 잦음.
-            # 빠른 기본 조회로 좌표 포함 다수를 받아 통학구역 기준 거리순 정렬·근접 5개.
+            # 빠른 기본 조회로 좌표 포함 다수를 받아 중심 기준 거리순 정렬·근접 5개.
             r = httpx.get(
                 os.getenv("HIRA_API_ENDPOINT",
                           "https://apis.data.go.kr/B551182/hospInfoServicev2") +
                 "/getHospBasisList",
                 params={"serviceKey": _key("HIRA_API_KEY"), "_type": "json",
-                        "dgsbjtCd": "23", "numOfRows": 50},
+                        "dgsbjtCd": "23", "numOfRows": 200},
                 timeout=9.0)
             r.raise_for_status()
             items = r.json()["response"]["body"]["items"]["item"]
@@ -118,7 +146,7 @@ def _fetch_live(kind: str) -> list[dict] | None:
                 if not (it.get("XPos") and it.get("YPos")):
                     continue
                 lat, lng = float(it["YPos"]), float(it["XPos"])
-                scored.append((_dist_km(lat, lng), it, lat, lng))
+                scored.append((_dist_km(lat, lng, center), it, lat, lng))
             scored.sort(key=lambda t: t[0])
             live = [{"name": it.get("yadmNm"),
                      "addr": f"{it.get('addr')} (약 {d}km)" if it.get("addr") else f"약 {d}km",
@@ -126,66 +154,35 @@ def _fetch_live(kind: str) -> list[dict] | None:
                      "lat": lat, "lng": lng, "group": "medical"}
                     for d, it, lat, lng in scored[:5]]
             if live:
-                _save_to_cache(kind, live)
                 return live
             return None
-        except Exception:
-            return None
-
-    if kind == "청소년상담복지센터" and _key("TEEN_COUNSEL_API_KEY"):
-        try:
-            # operation 경로는 data.go.kr 서비스 Swagger에서 확인 후 TEEN_COUNSEL_OPERATION에 지정.
-            # (서비스 alias != operation이라 추정 불가 — 미설정 시 캐시 폴백)
-            op = os.getenv("TEEN_COUNSEL_OPERATION")
-            if not op:
-                return None
-            r = httpx.get(
-                os.getenv("TEEN_COUNSEL_API_ENDPOINT",
-                          "https://apis.data.go.kr/1383000/gmis/teenDscsnSrcnServiceV2") +
-                "/" + op,
-                params={"serviceKey": _key("TEEN_COUNSEL_API_KEY"), "type": "json",
-                        "numOfRows": 5, "pageNo": 1},
-                timeout=4.0)
-            r.raise_for_status()
-            items = r.json()["response"]["body"]["items"]["item"]
-            if isinstance(items, dict):
-                items = [items]
-            live = []
-            for it in items:
-                addr = it.get("adres") or it.get("addr")
-                coord = _geocode(addr) if addr else None
-                live.append({"name": it.get("fcltyNm") or it.get("instNm") or "청소년상담복지센터",
-                             "addr": addr, "tel": it.get("telno") or "1388",
-                             "source": "여가부(실시간)",
-                             "lat": coord[0] if coord else None,
-                             "lng": coord[1] if coord else None, "group": "counsel"})
-            _save_to_cache(kind, live)
-            return live
         except Exception:
             return None
     return None
 
 
-def _save_to_cache(kind: str, items: list[dict]) -> None:
+def _save_to_cache(kind: str, items: list[dict], region: str) -> None:
     cache = _load_cache()
-    cache[kind] = items
+    cache[f"{region}:{kind}"] = items
     CACHE_PATH.write_text(json.dumps(cache, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
 # 비식별: 외부로는 좌표·코드만 나간다(시연용 표기).
-def deidentified_payload(school: str) -> dict:
-    return {"외부전송_데이터": {"통학구역_중심좌표": SCHOOL_CENTER, "사안코드": "C-RED"},
+def deidentified_payload(school: str, center: list[float]) -> dict:
+    return {"외부전송_데이터": {"통학구역_중심좌표": center, "사안코드": "C-RED"},
             "포함되지_않음": ["학생명", "주소", "주민번호", "연락처"]}
 
 
-def match(case_resources: list[str], school: str) -> dict:
+def match(case_resources: list[str], school: str, region: str | None = None) -> dict:
     internal = SCHOOL_INTERNAL.get(school, SCHOOL_INTERNAL["A"])
-    cache = _load_cache() or _seed_cache()
+    region = region if region in REGIONS else DEFAULT_REGION
+    center = region_center(region)
+    cache = _load_cache()
 
     internal_out, external_out, points = [], [], []
     # 학교(통학구역 중심) 마커는 항상 표시.
-    points.append({"kind": "학교(통학구역 중심)", "name": "본교",
-                   "lat": SCHOOL_CENTER[0], "lng": SCHOOL_CENTER[1], "group": "school"})
+    points.append({"kind": "학교(통학구역 중심)", "name": f"본교 · {REGIONS[region]['label']}",
+                   "lat": center[0], "lng": center[1], "group": "school"})
 
     for kind in case_resources:
         if kind == "wee_class":
@@ -197,19 +194,20 @@ def match(case_resources: list[str], school: str) -> dict:
             })
             if internal["wee_class"]:
                 points.append({"kind": "교내 Wee클래스", "name": "교내 Wee클래스",
-                               "lat": SCHOOL_CENTER[0] + 0.0008, "lng": SCHOOL_CENTER[1] + 0.0008,
+                               "lat": center[0] + 0.0008, "lng": center[1] + 0.0008,
                                "group": "wee"})
         elif kind in ("112_신고", "학교폭력대책심의위원회"):
             internal_out.append({"kind": kind, "available": True,
                                  "note": "법정 절차 · 교내/관할 연계", "source": "법령 절차"})
         else:
-            live = _fetch_live(kind)
-            items = live if live is not None else cache.get(kind, [])
-            external_out.append({
-                "kind": kind,
-                "source_mode": "실시간" if live is not None else "캐시 폴백",
-                "items": items,
-            })
+            live = _fetch_live(kind, center)
+            if live is not None:
+                _save_to_cache(kind, live, region)
+                items, mode = live, "실시간"
+            else:
+                items = cache.get(f"{region}:{kind}") or _seed_for(kind, center)
+                mode = "캐시 폴백"
+            external_out.append({"kind": kind, "source_mode": mode, "items": items})
             for it in items:
                 if it.get("lat") and it.get("lng"):
                     points.append({"kind": kind, "name": it.get("name"),
@@ -218,6 +216,7 @@ def match(case_resources: list[str], school: str) -> dict:
     return {
         "internal": internal_out,
         "external": external_out,
-        "map": {"center": SCHOOL_CENTER, "points": points},
-        "deidentified": deidentified_payload(school),
+        "region": region,
+        "map": {"center": center, "points": points, "region_label": REGIONS[region]["label"]},
+        "deidentified": deidentified_payload(school, center),
     }

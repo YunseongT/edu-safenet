@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "./api";
+import { REGIONS, DEFAULT_REGION } from "./core/resources";
 import Signal from "./Signal";
 import Evidence from "./Evidence";
 import Package from "./Package";
@@ -10,9 +11,30 @@ import "./App.css";
 
 const ROLES = ["교사", "업무담당교사", "관리자", "학생·학부모"];
 
+// 위기수준별 패키지 라벨: 적색=위원회 자료, 그 외=교사 판단에 따른 사안 검토 자료.
+const pkgLabel = (color) => color === "red" ? "위기관리위원회 참고자료 패키지" : "사안 검토 참고자료 패키지";
+const isCrisis = (color) => color === "red" || color === "yellow";
+
+// 패키지 생성 버튼 + 안내문(교사 탭·업무담당교사 탭 공용).
+function PackageGen({ color, busy, onGen, note, children }) {
+  return (
+    <div className="evidence-wrap">
+      <button className={`pkg-btn${busy ? " busy" : ""}`} disabled={busy} onClick={onGen}>
+        {busy && <span className="spinner" aria-hidden="true" />}
+        {busy ? "패키지 생성 중…" : pkgLabel(color) + " 생성"}
+      </button>
+      <div className="muted" style={{ marginTop: 6 }}>
+        {busy ? "법령·자원·보고서 초안을 모으는 중입니다. 잠시만 기다려 주세요." : note}
+      </div>
+      {children}
+    </div>
+  );
+}
+
 export default function App() {
   const [role, setRole] = useState("교사");
   const [school, setSchool] = useState("A");
+  const [region, setRegion] = useState(DEFAULT_REGION);  // 자원지도 시군구 프리셋
   const [students, setStudents] = useState([]);
   const [studentId, setStudentId] = useState(null);
   const [text, setText] = useState("");
@@ -58,18 +80,21 @@ export default function App() {
       });
   }, []);
 
+  // 신호+같은 인덱스 일지 → 뷰 객체(저장된 과거 신호 표시·소견 입력용).
+  const sigToView = useCallback((sig, journal) => sig ? {
+    rule: sig.breakdown, llm_context: "", saved: true,
+    text: journal ? (journal.refined_text || journal.raw_text) : "",
+    signalId: sig.id, teacher_note: sig.teacher_note, note_at: sig.note_at,
+    school: sig.breakdown?.school?.key || school,
+  } : null, [school]);
+
   const loadHistory = useCallback((id) => {
     api.journals(id)
       .then((h) => {
         if (h && Array.isArray(h.journals) && Array.isArray(h.signals)) {
           setHistory(h);
-          const li = h.signals.length - 1;
-          const last = h.signals[li];
-          const lastJ = h.journals[li];  // 신호와 같은 인덱스의 일지(배열 길이 어긋남 방지)
-          const next = last ? { rule: last.breakdown, llm_context: "", saved: true,
-            text: lastJ ? (lastJ.refined_text || lastJ.raw_text) : "",
-            signalId: last.id, teacher_note: last.teacher_note, note_at: last.note_at,
-            school: last.breakdown?.school?.key || school } : null;
+          const li = h.signals.length - 1;  // 마지막 신호+일지(배열 길이 어긋남 방지)
+          const next = sigToView(h.signals[li], h.journals[li]);
           setViewing(next);
           setNote(next?.teacher_note || "");
         } else {
@@ -79,7 +104,7 @@ export default function App() {
       .catch((err) => {
         console.error("Failed to load history:", err);
       });
-  }, [school]);
+  }, [sigToView]);
 
   useEffect(() => { if (studentId) loadHistory(studentId); }, [studentId, loadHistory]);
 
@@ -93,8 +118,8 @@ export default function App() {
     } finally { setNoteSaving(false); }
   }
 
-  // sch 인자로 학교 프리셋을 명시 전달(학교 변경 시 stale 클로저 방지).
-  function onText(v, sch = school) {
+  // sch·reg 인자로 프리셋을 명시 전달(변경 시 stale 클로저 방지).
+  function onText(v, sch = school, reg = region) {
     setText(v);
     if (advisory) setAdvisory("");
     clearTimeout(debounce.current);
@@ -103,16 +128,21 @@ export default function App() {
       try {
         const r = await api.assess(v, sch);
         setLive(r);
-        if (isTeacher && isCrisis(r.rule.color)) setEvidence(await api.evidence(v, sch));
+        if (isTeacher && isCrisis(r.rule.color)) setEvidence(await api.evidence(v, sch, reg));
         else setEvidence(null);
       } catch { /* ignore */ }
     }, 450);
   }
 
-  // 학교 프리셋 변경 → 현재 입력 즉시 재평가(effect 대신 핸들러에서 처리).
+  // 학교/지역 프리셋 변경 → 현재 입력 즉시 재평가(effect 대신 핸들러에서 처리).
   function onSchoolChange(sch) {
     setSchool(sch);
-    if (text.trim()) onText(text, sch);
+    if (text.trim()) onText(text, sch, region);
+  }
+
+  function onRegionChange(reg) {
+    setRegion(reg);
+    if (text.trim()) onText(text, school, reg);
   }
 
   async function save() {
@@ -129,14 +159,10 @@ export default function App() {
 
   const studentName = students.find((s) => s.id === studentId)?.display_name || "";
 
-  // 위기수준별 패키지 라벨: 적색=위원회 자료, 그 외=교사 판단에 따른 사안 검토 자료.
-  const pkgLabel = (color) => color === "red" ? "위기관리위원회 참고자료 패키지" : "사안 검토 참고자료 패키지";
-  const isCrisis = (color) => color === "red" || color === "yellow";
-
-  async function genPackage(text, school) {
-    if (!text) return;
+  async function genPackage(txt, sch, reg = region) {
+    if (!txt) return;
     setPkgBusy(true);
-    try { setPkg(await api.package(text, school)); } finally { setPkgBusy(false); }
+    try { setPkg(await api.package(txt, sch, reg)); } finally { setPkgBusy(false); }
   }
 
   // 교사 탭: 표시 중 신호(라이브 또는 저장된 과거) 기준.
@@ -185,6 +211,13 @@ export default function App() {
               </select>
             </label>
           )}
+          {(canEdit || isStaff) && (
+            <label>지역(자원지도)&nbsp;
+              <select value={region} onChange={(e) => onRegionChange(e.target.value)}>
+                {Object.entries(REGIONS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
+              </select>
+            </label>
+          )}
         </div>
       )}
 
@@ -193,14 +226,8 @@ export default function App() {
       {isStaff && (
         <>
           {isCrisis(lastColor) && lastText && (
-            <div className="evidence-wrap">
-              <button className="pkg-btn" disabled={pkgBusy} onClick={() => genPackage(lastText, lastSchool)}>
-                {pkgBusy ? "패키지 생성 중..." : pkgLabel(lastColor) + " 생성"}
-              </button>
-              <div className="muted" style={{ marginTop: 6 }}>
-                {studentName} 최근 저장 신호({lastColor}) 기준 · {lastColor === "red" ? "위원회 제출 자료 준비" : "담당자 사안 검토 자료 준비"}
-              </div>
-            </div>
+            <PackageGen color={lastColor} busy={pkgBusy} onGen={() => genPackage(lastText, lastSchool)}
+              note={`${studentName} 최근 저장 신호(${lastColor}) 기준 · ${lastColor === "red" ? "위원회 제출 자료 준비" : "담당자 사안 검토 자료 준비"}`} />
           )}
           <Protocols studentId={studentId} studentName={studentName} />
         </>
@@ -225,13 +252,9 @@ export default function App() {
                 {history.journals.map((j, i) => (
                   <div key={j.id} className="tl-item clickable"
                     onClick={() => {
-                      const sig = history.signals[i];
-                      const next = { rule: sig.breakdown, llm_context: "", saved: true,
-                        text: j.refined_text || j.raw_text,
-                        signalId: sig.id, teacher_note: sig.teacher_note,
-                        note_at: sig.note_at, school: sig.breakdown?.school?.key || school };
+                      const next = sigToView(history.signals[i], j);
                       setViewing(next);
-                      setNote(next.teacher_note || "");
+                      setNote(next?.teacher_note || "");
                     }}>
                     <span className={`dot ${history.signals[i]?.color}`} />
                     <div>
@@ -272,15 +295,11 @@ export default function App() {
           </main>
 
           {shownColor && pkgText && (
-            <div className="evidence-wrap">
-              <button className="pkg-btn" disabled={pkgBusy} onClick={() => genPackage(pkgText, live ? school : (viewing?.school || school))}>
-                {pkgBusy ? "패키지 생성 중..." : pkgLabel(shownColor) + " 생성"}
-              </button>
-              <div className="muted" style={{ marginTop: 6 }}>
-                교사가 시스템·AI 의견을 검토한 뒤 도움이 필요하다고 판단하면 생성합니다.
-              </div>
+            <PackageGen color={shownColor} busy={pkgBusy}
+              onGen={() => genPackage(pkgText, live ? school : (viewing?.school || school))}
+              note="교사가 시스템·AI 의견을 검토한 뒤 도움이 필요하다고 판단하면 생성합니다.">
               {evidence && <Evidence data={evidence} />}
-            </div>
+            </PackageGen>
           )}
         </>
       )}

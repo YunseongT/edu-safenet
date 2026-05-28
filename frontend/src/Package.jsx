@@ -33,7 +33,7 @@ export default function Package({ data, onClose }) {
             {l.verified && <span className="vbadge ok" style={{ marginLeft: 6 }}>✓ 법제처 확인</span>}</div>
         ))}
 
-        <h3>자원 지도 <span className="muted">· V-WORLD · 거리순 매칭</span></h3>
+        <h3>자원 지도 <span className="muted">· V-WORLD · {data.resources.map?.region_label || "거리순 매칭"} 기준</span></h3>
         {data.resources.map && <ResourceMap map={data.resources.map} />}
 
         <h3>자원</h3>

@@ -33,11 +33,11 @@ const staticApi = {
   assess: (text, school) => ok({ refined_text: text, rule: assess(text, school), llm_context: "", llm_suggested_labels: [] }),
   addJournal: (id, text, school) => { store.addJournal(id, text, school); return ok({ ok: true }); },
   signalNote: (sigId, note) => { const s = store.addNote(sigId, note); return ok({ ok: !!s, signal_id: sigId, teacher_note: note, note_at: s ? s.note_at : null }); },
-  evidence: (text, school) => { const r = assess(text, school);
-    return ok({ color: r.color, labels: r.labels, laws: lawsFor(r.categories), resources: match(resourceKinds(r.categories), school) }); },
-  package: (text, school) => { const r = assess(text, school);
+  evidence: (text, school, region) => { const r = assess(text, school);
+    return ok({ color: r.color, labels: r.labels, laws: lawsFor(r.categories), resources: match(resourceKinds(r.categories), school, region) }); },
+  package: (text, school, region) => { const r = assess(text, school);
     return ok({ signal: { color: r.color, score: r.score, labels: r.labels, floor_reasons: r.floor_reasons },
-      laws: lawsFor(r.categories), resources: match(resourceKinds(r.categories), school), report: buildReport(text, r) }); },
+      laws: lawsFor(r.categories), resources: match(resourceKinds(r.categories), school, region), report: buildReport(text, r) }); },
   dashboard: () => ok(store.dashboard()),
   protocols: (studentId) => { let active = [];
     if (studentId) { const sig = store.journals(studentId).signals; const last = sig[sig.length - 1];
@@ -57,8 +57,8 @@ const backendApi = {
   assess: (text, school) => jpost("/assess", { text, school }),
   addJournal: (id, text, school) => jpost("/journals", { student_id: id, text, school }),
   signalNote: (sigId, note) => jpost(`/signals/${sigId}/note`, { note }),
-  evidence: (text, school) => jpost("/evidence", { text, school }),
-  package: (text, school) => jpost("/package", { text, school }),
+  evidence: (text, school, region) => jpost("/evidence", { text, school, region }),
+  package: (text, school, region) => jpost("/package", { text, school, region }),
   dashboard: () => jget("/dashboard"),
   protocols: (studentId) => jget(`/protocols${studentId ? `?student_id=${studentId}` : ""}`),
 };

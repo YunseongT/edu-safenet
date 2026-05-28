@@ -74,10 +74,21 @@ def _law_name(title: str) -> str:
     return title.split(" 제")[0].split("(")[0].strip()
 
 
-def _search_link(title: str) -> str:
-    """법제처 국가법령정보 검색 링크(결정적 폴백)."""
+def _article_no(title: str) -> str | None:
+    """'... 제20조(...)' / '... 제2조·제7조' → 첫 조 번호('20'). 없으면 None."""
+    m = re.search(r"제(\d+)조", title)
+    return m.group(1) if m else None
+
+
+def _article_link(name: str, title: str) -> str:
+    """법제처 국가법령정보 조문 딥링크: /법령/{법령명}/제N조 — 클릭 시 해당 조문이 바로 열린다.
+    조 번호 없으면 법령 본문, 법령명 없으면 검색 폴백."""
     from urllib.parse import quote
-    return f"https://www.law.go.kr/LSW/lsSc.do?menuId=1&query={quote(_law_name(title))}"
+    if not name:
+        return f"https://www.law.go.kr/LSW/lsSc.do?menuId=1&query={quote(_law_name(title))}"
+    base = "https://www.law.go.kr/법령/" + name.replace(" ", "")
+    art = _article_no(title)
+    return base + (f"/제{art}조" if art else "")
 
 
 def _key() -> str | None:
@@ -87,14 +98,13 @@ def _key() -> str | None:
 _LIVE_CACHE: dict[str, dict] = {}
 
 
-def _law_live(title: str) -> dict | None:
+def _law_live(name: str, title: str) -> dict | None:
     """법제처 1170000/law 실시간 검색 → {verified, link}. 키없음·실패 시 None.
 
     operation/필드명은 서비스 스펙에 맞춰 보정 필요(추정 파싱, 실패 시 폴백)."""
     key = _key()
     if not key:
         return None
-    name = _law_name(title)
     if name in _LIVE_CACHE:
         return _LIVE_CACHE[name]
     endpoint = os.getenv("LAW_API_ENDPOINT", "https://apis.data.go.kr/1170000/law")
@@ -110,7 +120,7 @@ def _law_live(title: str) -> dict | None:
         verified = "<resultCode>00</resultCode>" in body and "<법령상세링크>" in body
         m = re.search(r"<법령상세링크>(/DRF/[^<]+)</법령상세링크>", body)
         link = ("https://www.law.go.kr" + m.group(1).replace("&amp;", "&")) if m \
-            else _search_link(title)
+            else _article_link(name, title)
         result = {"verified": verified, "link": link}
     except Exception:
         result = None
@@ -119,17 +129,24 @@ def _law_live(title: str) -> dict | None:
 
 
 def laws_for(labels_by_id: dict, live: bool = False) -> list[dict]:
-    """live=True면 법제처 API로 존재 확인·공식 링크 보강(slow 경로 전용)."""
+    """live=True면 법제처 API로 존재 확인·공식 링크 보강(slow 경로 전용).
+
+    링크는 법제처 조문 딥링크(/법령/{명}/제N조) — 클릭 시 해당 조문이 바로 열린다.
+    '동법'은 같은 카테고리 직전 법령명을 상속한다."""
     out, seen = [], set()
     for cat_id in labels_by_id:
+        prev_name = None
         for law in LAW_BY_CATEGORY.get(cat_id, []):
-            key = law["title"]
-            if key in seen:
+            title = law["title"]
+            # '동법 제16조' → 직전 실제 법령명 사용. 그 외엔 제목에서 추출.
+            name = prev_name if title.startswith("동법") and prev_name else _law_name(title)
+            prev_name = name
+            if title in seen:
                 continue
-            seen.add(key)
-            entry = {**law, "category": cat_id, "link": _search_link(law["title"])}
+            seen.add(title)
+            entry = {**law, "category": cat_id, "link": _article_link(name, title)}
             if live:
-                lv = _law_live(law["title"])
+                lv = _law_live(name, title)
                 if lv:
                     entry["link"] = lv["link"]
                     entry["verified"] = lv["verified"]

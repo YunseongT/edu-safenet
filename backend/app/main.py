@@ -163,6 +163,7 @@ def set_signal_note(signal_id: int, body: NoteIn):
 class AssessIn(BaseModel):
     text: str
     school: str = "A"
+    region: str | None = None  # 자원지도 시군구 프리셋(없으면 기본 권역)
 
 
 @app.post("/assess")
@@ -197,7 +198,7 @@ def evidence(body: AssessIn):
         "color": rule["color"],
         "labels": rule["labels"],
         "laws": laws,
-        "resources": match(resource_kinds, body.school),
+        "resources": match(resource_kinds, body.school, body.region),
     }
 
 
@@ -212,7 +213,7 @@ def committee_package(body: AssessIn):
         "signal": {"color": rule["color"], "score": rule["score"],
                    "labels": rule["labels"], "floor_reasons": rule["floor_reasons"]},
         "laws": laws,
-        "resources": match(resource_kinds, body.school),
+        "resources": match(resource_kinds, body.school, body.region),
         "report": report,
     }
 
