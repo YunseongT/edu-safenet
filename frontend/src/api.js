@@ -30,14 +30,14 @@ const staticApi = {
   schools: () => ok(store.schools()),
   journals: (id) => ok(store.journals(id)),
   config: () => ok({ llm_enabled: false, demo_mode: true }),
-  assess: (text, school) => ok({ refined_text: text, rule: assess(text, school), llm_context: "", llm_suggested_labels: [] }),
+  assess: (text, school) => ok({ refined_text: text, rule: assess(text, school), llm_context: "" }),
   addJournal: (id, text, school) => { store.addJournal(id, text, school); return ok({ ok: true }); },
   signalNote: (sigId, note) => { const s = store.addNote(sigId, note); return ok({ ok: !!s, signal_id: sigId, teacher_note: note, note_at: s ? s.note_at : null }); },
   evidence: (text, school, region) => { const r = assess(text, school);
-    return ok({ color: r.color, labels: r.labels, laws: lawsFor(r.categories), resources: match(resourceKinds(r.categories), school, region) }); },
+    return ok({ color: r.color, labels: r.labels, laws: lawsFor(r.categories), resources: match(resourceKinds(r.categories), school, region, r.color) }); },
   package: (text, school, region) => { const r = assess(text, school);
     return ok({ signal: { color: r.color, score: r.score, labels: r.labels, floor_reasons: r.floor_reasons },
-      laws: lawsFor(r.categories), resources: match(resourceKinds(r.categories), school, region), report: buildReport(text, r) }); },
+      laws: lawsFor(r.categories), resources: match(resourceKinds(r.categories), school, region, r.color), report: buildReport(text, r) }); },
   dashboard: () => ok(store.dashboard()),
   protocols: (studentId) => { let active = [];
     if (studentId) { const sig = store.journals(studentId).signals; const last = sig[sig.length - 1];

@@ -38,7 +38,7 @@ function seedFor(kind, center) {
   });
 }
 
-export function match(caseResources, school, region) {
+export function match(caseResources, school, region, color = "green") {
   const internal = SCHOOL_INTERNAL[school] || SCHOOL_INTERNAL.A;
   const rkey = REGIONS[region] ? region : DEFAULT_REGION;
   const center = REGIONS[rkey].center;
@@ -66,7 +66,7 @@ export function match(caseResources, school, region) {
     internal: internalOut, external: externalOut, region: rkey,
     map: { center, points, region_label: REGIONS[rkey].label },
     deidentified: {
-      "외부전송_데이터": { "통학구역_중심좌표": center, "사안코드": "C-RED" },
+      "외부전송_데이터": { "통학구역_중심좌표": center, "사안코드": `C-${color.toUpperCase()}` },
       "포함되지_않음": ["학생명", "주소", "주민번호", "연락처"],
     },
   };

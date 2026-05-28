@@ -24,6 +24,10 @@ jobs:
       - name: Install deps
         run: npm ci
 
+      - name: Parity test (py↔js 엔진 드리프트)
+        working-directory: ${{ github.workspace }}
+        run: node tests/parity.mjs
+
       - name: Build
         env:
           # 공개 URL(비밀 아님). 터널 백엔드 호출용.

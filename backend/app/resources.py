@@ -27,8 +27,6 @@ REGIONS = {
     "busan_haeundae": {"label": "부산 해운대구", "center": [35.1631, 129.1635]},
 }
 DEFAULT_REGION = "seoul_gangnam"
-# 하위호환: 기본 중심(강남) 참조용.
-SCHOOL_CENTER = REGIONS[DEFAULT_REGION]["center"]
 
 
 def region_center(region: str | None) -> list[float]:
@@ -168,12 +166,12 @@ def _save_to_cache(kind: str, items: list[dict], region: str) -> None:
 
 
 # 비식별: 외부로는 좌표·코드만 나간다(시연용 표기).
-def deidentified_payload(school: str, center: list[float]) -> dict:
-    return {"외부전송_데이터": {"통학구역_중심좌표": center, "사안코드": "C-RED"},
+def deidentified_payload(school: str, center: list[float], color: str = "green") -> dict:
+    return {"외부전송_데이터": {"통학구역_중심좌표": center, "사안코드": f"C-{color.upper()}"},
             "포함되지_않음": ["학생명", "주소", "주민번호", "연락처"]}
 
 
-def match(case_resources: list[str], school: str, region: str | None = None) -> dict:
+def match(case_resources: list[str], school: str, region: str | None = None, color: str = "green") -> dict:
     internal = SCHOOL_INTERNAL.get(school, SCHOOL_INTERNAL["A"])
     region = region if region in REGIONS else DEFAULT_REGION
     center = region_center(region)
@@ -218,5 +216,5 @@ def match(case_resources: list[str], school: str, region: str | None = None) -> 
         "external": external_out,
         "region": region,
         "map": {"center": center, "points": points, "region_label": REGIONS[region]["label"]},
-        "deidentified": deidentified_payload(school, center),
+        "deidentified": deidentified_payload(school, center, color),
     }

@@ -3,7 +3,7 @@ export default function Evidence({ data }) {
   const { laws, resources } = data;
   return (
     <section className="col evidence">
-      <h2>근거 · 자원 (적색 대응 패키지)</h2>
+      <h2>근거 · 자원 ({data.color === "red" ? "적색 위기" : "황색 주의"} 대응 패키지)</h2>
 
       <h3>법령 근거 <span className="muted">· 케이스별 큐레이션</span></h3>
       {laws.length === 0 && <div className="muted">해당 유형 없음</div>}

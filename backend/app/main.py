@@ -31,7 +31,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="Edu-SafeNet", lifespan=lifespan)
 _origins = os.getenv(
     "CORS_ORIGINS",
-    "http://localhost:5173,https://demo.yunseongt.com",
+    "http://localhost:5173,https://demo.yunseongt.com,https://safenet.yunseongt.com",
 ).split(",")
 app.add_middleware(
     CORSMiddleware,
@@ -198,7 +198,7 @@ def evidence(body: AssessIn):
         "color": rule["color"],
         "labels": rule["labels"],
         "laws": laws,
-        "resources": match(resource_kinds, body.school, body.region),
+        "resources": match(resource_kinds, body.school, body.region, rule["color"]),
     }
 
 
@@ -213,7 +213,7 @@ def committee_package(body: AssessIn):
         "signal": {"color": rule["color"], "score": rule["score"],
                    "labels": rule["labels"], "floor_reasons": rule["floor_reasons"]},
         "laws": laws,
-        "resources": match(resource_kinds, body.school, body.region),
+        "resources": match(resource_kinds, body.school, body.region, rule["color"]),
         "report": report,
     }
 

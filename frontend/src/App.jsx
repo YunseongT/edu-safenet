@@ -3,7 +3,7 @@ import { api } from "./api";
 import { REGIONS, DEFAULT_REGION } from "./core/resources";
 import Signal from "./Signal";
 import Evidence from "./Evidence";
-import Package from "./Package";
+import Package, { pkgLabel } from "./Package";
 import Dashboard from "./Dashboard";
 import Guardian from "./Guardian";
 import Protocols from "./Protocols";
@@ -11,8 +11,6 @@ import "./App.css";
 
 const ROLES = ["교사", "업무담당교사", "관리자", "학생·학부모"];
 
-// 위기수준별 패키지 라벨: 적색=위원회 자료, 그 외=교사 판단에 따른 사안 검토 자료.
-const pkgLabel = (color) => color === "red" ? "위기관리위원회 참고자료 패키지" : "사안 검토 참고자료 패키지";
 const isCrisis = (color) => color === "red" || color === "yellow";
 
 // 패키지 생성 버튼 + 안내문(교사 탭·업무담당교사 탭 공용).
