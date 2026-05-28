@@ -150,8 +150,8 @@ class AssessIn(BaseModel):
 
 @app.post("/assess")
 def assess_only(body: AssessIn):
-    """저장 없이 즉석 평가(라이브 신호등 미리보기용)."""
-    return process(body.text, body.school)
+    """저장 없이 즉석 평가(라이브 신호등 미리보기용). 타자마다 호출 → 규칙만(LLM 미사용)."""
+    return process(body.text, body.school, llm=False)
 
 
 def _resources_and_laws(rule: dict, school: str, live: bool = False):

@@ -48,8 +48,13 @@ def suggest_labels(raw_text: str, rule_labels: list[str]) -> list[str]:
         return []
 
 
-def process(raw_text: str, school: str = "A") -> dict:
+def process(raw_text: str, school: str = "A", llm: bool = True) -> dict:
+    """llm=False면 LLM 보조 생략(규칙만). 라이브 미리보기(/assess)는 타자마다 호출되므로
+    LLM 미사용 — reasoning 모델 토큰 폭주·지연 방지. 색·분류는 항상 규칙이 결정."""
     rule = assess(raw_text, school)          # 규칙: 결정적 (색·floor·분류 최종)
+    if not llm:
+        return {"refined_text": raw_text, "rule": rule,
+                "llm_context": "", "llm_suggested_labels": []}
     refined = refine(raw_text)               # LLM 보조: 정제
     comment = context_comment(raw_text, rule)  # LLM 보조: 맥락 한 줄
     extra = suggest_labels(raw_text, rule["labels"])  # LLM 보조: 추가 유형 제안
