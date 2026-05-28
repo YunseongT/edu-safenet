@@ -129,7 +129,7 @@ export default function App() {
 
   const studentName = students.find((s) => s.id === studentId)?.display_name || "";
 
-  // 위기수준별 패키지 라벨: 적색=위원회 자료, 황색=사안 검토 자료. 녹색은 패키지 없음(과잉대응 방지).
+  // 위기수준별 패키지 라벨: 적색=위원회 자료, 그 외=교사 판단에 따른 사안 검토 자료.
   const pkgLabel = (color) => color === "red" ? "위기관리위원회 참고자료 패키지" : "사안 검토 참고자료 패키지";
   const isCrisis = (color) => color === "red" || color === "yellow";
 
@@ -271,11 +271,14 @@ export default function App() {
             </section>
           </main>
 
-          {isCrisis(shownColor) && pkgText && (
+          {shownColor && pkgText && (
             <div className="evidence-wrap">
               <button className="pkg-btn" disabled={pkgBusy} onClick={() => genPackage(pkgText, live ? school : (viewing?.school || school))}>
                 {pkgBusy ? "패키지 생성 중..." : pkgLabel(shownColor) + " 생성"}
               </button>
+              <div className="muted" style={{ marginTop: 6 }}>
+                교사가 시스템·AI 의견을 검토한 뒤 도움이 필요하다고 판단하면 생성합니다.
+              </div>
               {evidence && <Evidence data={evidence} />}
             </div>
           )}
