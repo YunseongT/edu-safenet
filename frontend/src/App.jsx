@@ -23,6 +23,7 @@ export default function App() {
   const [pkgBusy, setPkgBusy] = useState(false);
   const [history, setHistory] = useState({ journals: [], signals: [] });
   const [busy, setBusy] = useState(false);
+  const [advisory, setAdvisory] = useState("");  // 저장 시 LLM 보조의견(규칙이 놓친 의미·맥락)
   const [cfg, setCfg] = useState({ llm_enabled: true, demo_mode: false });
   const debounce = useRef(null);
 
@@ -76,6 +77,7 @@ export default function App() {
   // sch 인자로 학교 프리셋을 명시 전달(학교 변경 시 stale 클로저 방지).
   function onText(v, sch = school) {
     setText(v);
+    if (advisory) setAdvisory("");
     clearTimeout(debounce.current);
     if (!v.trim()) { setLive(null); setEvidence(null); return; }
     debounce.current = setTimeout(async () => {
@@ -98,7 +100,9 @@ export default function App() {
     if (!text.trim() || !studentId) return;
     setBusy(true);
     try {
-      await api.addJournal(studentId, text, school);
+      const res = await api.addJournal(studentId, text, school);
+      const a = (res && res.llm_context || "").trim();
+      setAdvisory(a && !["특이사항 없음", "특이사항없음"].includes(a) ? a : "");
       setText(""); setLive(null); setEvidence(null);
       loadHistory(studentId);
     } finally { setBusy(false); }
@@ -127,7 +131,7 @@ export default function App() {
       {!isAdmin && (
         <div className="bar">
           <label>학생&nbsp;
-            <select value={studentId ?? ""} onChange={(e) => setStudentId(Number(e.target.value))}>
+            <select value={studentId ?? ""} onChange={(e) => { setStudentId(Number(e.target.value)); setAdvisory(""); }}>
               {students.map((s) => <option key={s.id} value={s.id}>{s.display_name} · {s.token}</option>)}
             </select>
           </label>
@@ -178,6 +182,12 @@ export default function App() {
             <section className="col">
               <h2>위험도 신호등 {live ? "(라이브 입력)" : viewing?.saved ? "(저장된 최근 신호)" : "(라이브)"}</h2>
               <Signal result={live || viewing} />
+              {advisory && (
+                <div className="advisory">
+                  {advisory}
+                  <div className="advisory-note">※ AI 보조 의견 — 규칙이 놓쳤을 수 있는 맥락. 신호등 색은 규칙·사람이 최종 결정.</div>
+                </div>
+              )}
             </section>
           </main>
 

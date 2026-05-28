@@ -24,9 +24,12 @@ def context_comment(raw_text: str, rule_result: dict) -> str:
     labels = ", ".join(rule_result["labels"]) or "특이 유형 없음"
     try:
         return chat(
-            f"규칙 엔진이 이 일지를 '{labels}'(위험 {rule_result['color']})로 보았다. "
-            f"규칙이 놓쳤을 수 있는 맥락을 딱 한 문장으로만 제안해줘(색을 바꾸지 말 것):\n{raw_text}",
-            system=_SYS, max_tokens=100,
+            f"규칙(키워드) 엔진이 이 일지를 '{labels}'(위험도 {rule_result['color']})로 보았다. "
+            "규칙은 키워드 기반이라 의미·맥락(예: 기물 파손·이상행동·문학작품이 암시하는 정서위기 등)을 "
+            "놓칠 수 있다. 규칙이 과소평가했을 가능성이 있으면 '⚠ 보조의견:'으로 시작해 무엇을/왜 "
+            "한 문장으로 지적하고, 없으면 '특이사항 없음'이라고만 답해라. 신호등 색은 바꾸지 말 것"
+            f"(보조 의견일 뿐 최종 분류는 규칙·사람):\n{raw_text}",
+            system=_SYS, max_tokens=120,
         )
     except Exception:
         return ""

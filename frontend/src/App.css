@@ -121,3 +121,7 @@ textarea { width: 100%; background: #0e0e0e; color: #eee; border: 1px solid #333
 .leaflet-popup-content { font-size: 12px; }
 
 .tagline { margin: 2px 0 0; font-size: 13px; color: #9fb3c8; font-style: italic; }
+
+/* AI 보조 의견 (규칙이 놓친 의미·맥락, 색은 안 바꿈) */
+.advisory { margin-top: 10px; padding: 10px 12px; border-radius: 8px; background: #2a2410; border: 1px solid #6b5d1f; color: #e8d98a; font-size: 13px; }
+.advisory-note { margin-top: 6px; font-size: 11px; color: #b0a560; }
