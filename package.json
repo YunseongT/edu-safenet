@@ -1,0 +1,9 @@
+{
+  "name": "edu-safenet",
+  "private": true,
+  "version": "0.0.0",
+  "scripts": {
+    "build": "npm ci --prefix frontend && VITE_API_BASE=${VITE_API_BASE:-https://api.yunseongt.com} npm --prefix frontend run build",
+    "deploy": "npx wrangler deploy --config wrangler.toml"
+  }
+}
