@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "./api";
 import { REGIONS, DEFAULT_REGION } from "./core/resources";
+import { pkgLabel } from "./core/packageLabel";
 import Signal from "./Signal";
 import Evidence from "./Evidence";
-import Package, { pkgLabel } from "./Package";
+import Package from "./Package";
 import Dashboard from "./Dashboard";
 import Guardian from "./Guardian";
 import Protocols from "./Protocols";

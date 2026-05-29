@@ -10,6 +10,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from .cases import CASE_RESOURCES
+from .dashboard_stats import stats as dashboard_stats
 from .db import get_conn, init_db
 from .engine import SCHOOL_PRESETS, assess
 from .law import laws_for
@@ -116,7 +117,7 @@ def dashboard():
         b = by_school.setdefault(r["school"] or "?", {"green": 0, "yellow": 0, "red": 0, "none": 0})
         b[r["color"]] = b.get(r["color"], 0) + 1
     reds = [r for r in rows if r["color"] == "red"]
-    return {"students": rows, "by_school": by_school, "reds": reds, "total": len(rows)}
+    return {"students": rows, "by_school": by_school, "reds": reds, "total": len(rows), "stats": dashboard_stats()}
 
 
 class JournalIn(BaseModel):

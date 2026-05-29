@@ -8,9 +8,61 @@ export default function Dashboard() {
   useEffect(() => { api.dashboard().then(setD); }, []);
   if (!d) return <div className="muted">불러오는 중...</div>;
 
+  const stats = d.stats;
+  const trendMax = stats ? Math.max(...stats.weekly_trend.flatMap((p) => [p.school, p.regional_average])) : 1;
+
   return (
     <div className="dash">
       <h2>위기 총괄 대시보드 <small className="muted">· 관리자 전용 (개별 일지 입력 권한 없음)</small></h2>
+
+      {stats && (
+        <>
+          <div className="stat-source">{stats.source_name} · {stats.source_type} · {stats.stale_reason}</div>
+
+          <div className="risk-index">
+            <div>
+              <span>우리학교</span>
+              <strong>{stats.risk_index.school.toFixed(2)}</strong>
+            </div>
+            <div>
+              <span>시도평균</span>
+              <strong>{stats.risk_index.regional_average.toFixed(2)}</strong>
+            </div>
+            <div>
+              <span>전국평균</span>
+              <strong>{stats.risk_index.national_average.toFixed(2)}</strong>
+            </div>
+          </div>
+
+          <h3>6주 추세</h3>
+          <div className="trend">
+            {stats.weekly_trend.map((p) => (
+              <div key={p.week} className="trend-col">
+                <div className="trend-bars">
+                  <span className="trend-school" style={{ height: `${(p.school / trendMax) * 100}%` }} title={`우리학교 ${p.school}`} />
+                  <span className="trend-region" style={{ height: `${(p.regional_average / trendMax) * 100}%` }} title={`시도평균 ${p.regional_average}`} />
+                </div>
+                <span className="trend-label">{p.week}</span>
+              </div>
+            ))}
+          </div>
+
+          <h3>학년 · 반 위험도</h3>
+          <div className="class-grid">
+            {stats.class_grid.map((grade) => (
+              <div key={grade.grade} className="grade-row">
+                <div className="grade-label">{grade.grade}학년</div>
+                {grade.classes.map((c) => (
+                  <div key={c.class_name} className={`class-cell ${c.color}`}>
+                    <b>{c.class_name}</b>
+                    <span>{c.risk.toFixed(2)}</span>
+                  </div>
+                ))}
+              </div>
+            ))}
+          </div>
+        </>
+      )}
 
       <div className="dash-cards">
         {Object.entries(d.by_school).map(([sc, b]) => (
