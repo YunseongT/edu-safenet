@@ -12,9 +12,13 @@ data.go.kr 공통 일반 인증키는 DATA_GO_KR_API_KEY로 받고, 서비스별
 import json
 import math
 import os
+from datetime import datetime
 from pathlib import Path
 
 import httpx
+from dotenv import load_dotenv
+
+load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 
 CACHE_PATH = Path(__file__).resolve().parent / "resource_cache.json"
 
@@ -27,6 +31,17 @@ REGIONS = {
     "busan_haeundae": {"label": "부산 해운대구", "center": [35.1631, 129.1635]},
 }
 DEFAULT_REGION = "seoul_gangnam"
+STATIC_RETRIEVED_AT = "2026-05-18T09:00:00"
+SCHOOLINFO_ENDPOINT = "https://www.schoolinfo.go.kr/openApi.do"
+SCHOOLINFO_API_TYPE_COUNSELING = "61"
+
+SCHOOLINFO_REGION_PARAMS = {
+    "seoul_gangnam": {"sidoCode": "11", "sggCode": "11680"},
+    "gyeonggi_suwon": {"sidoCode": "41", "sggCode": "41115"},  # 수원 팔달구(41110은 학교알리미 미존재 코드 → 0건)
+    "daejeon_seo": {"sidoCode": "30", "sggCode": "30170"},
+    "gangwon_chuncheon": {"sidoCode": "51", "sggCode": "51110"},
+    "busan_haeundae": {"sidoCode": "26", "sggCode": "26350"},
+}
 
 
 def region_center(region: str | None) -> list[float]:
@@ -36,6 +51,29 @@ def region_center(region: str | None) -> list[float]:
 def _key(name: str) -> str | None:
     """서비스 전용 키 → 없으면 data.go.kr 공통 일반 인증키."""
     return os.getenv(name) or os.getenv("DATA_GO_KR_API_KEY")
+
+
+def _source_meta(source_type: str, source_name: str, stale_reason: str | None = None) -> dict:
+    return {
+        "source_type": source_type,
+        "source_name": source_name,
+        "retrieved_at": STATIC_RETRIEVED_AT,
+        "stale_reason": stale_reason,
+    }
+
+
+def _live_source_meta(source_name: str) -> dict:
+    return {
+        "source_type": "live",
+        "source_name": source_name,
+        "retrieved_at": datetime.now().isoformat(timespec="seconds"),
+        "stale_reason": None,
+    }
+
+
+def _items_with_source(items: list[dict], source_type: str, source_name: str, stale_reason: str | None) -> list[dict]:
+    meta = _source_meta(source_type, source_name, stale_reason)
+    return [{**it, **meta} for it in items]
 
 
 # 학교알리미 기반 교내 자원 보유(학교별). 실배포 시 OpenAPI(상담현황·Wee클래스 설치여부).
@@ -91,11 +129,12 @@ def _load_cache() -> dict:
 def _seed_for(kind: str, center: list[float]) -> list[dict]:
     """중심 좌표 주변에 배치한 시드 자원(외부 API 죽거나 키없을 때 폴백)."""
     out = []
+    meta = _source_meta("cached", f"{kind} 시드 캐시", "온프레미스 기본값은 해당 공공데이터 실시간 API를 호출하지 않음")
     for s in _SEED_OFFSETS.get(kind, []):
         lat, lng = center[0] + s["d"][0], center[1] + s["d"][1]
         out.append({"name": s["name"], "addr": f"통학구역 중심 인근 약 {_dist_km(lat, lng, center)}km",
                     "tel": s["tel"], "source": s["source"],
-                    "lat": lat, "lng": lng, "group": s["group"]})
+                    "lat": lat, "lng": lng, "group": s["group"], **meta})
     return out
 
 
@@ -118,6 +157,90 @@ def _geocode(addr: str) -> tuple[float, float] | None:
         except Exception:
             continue
     return None
+
+
+def _schoolinfo_key() -> str | None:
+    return os.getenv("SCHOOLINFO_API_KEY") or os.getenv("DATA_GO_KR_API_KEY")
+
+
+def _schoolinfo_params(region: str, school: str | None = None) -> dict:
+    params = SCHOOLINFO_REGION_PARAMS.get(region, SCHOOLINFO_REGION_PARAMS[DEFAULT_REGION]).copy()
+    # 데모 학교를 특정 코드에 고정한 경우, 그 학교가 속한 지역으로 조회(UI region과 무관).
+    if school:
+        sido = os.getenv(f"SCHOOLINFO_{school}_SIDO_CODE")
+        sgg = os.getenv(f"SCHOOLINFO_{school}_SGG_CODE")
+        if sido and sgg:
+            params["sidoCode"], params["sggCode"] = sido, sgg
+        knd = os.getenv(f"SCHOOLINFO_{school}_SCHUL_KND_CODE")
+        if knd:
+            params["schulKndCode"] = knd
+            return params
+    params["schulKndCode"] = os.getenv("SCHOOLINFO_SCHUL_KND_CODE", "03")
+    return params
+
+
+def _yn(value) -> bool:
+    return str(value or "").strip().upper() in ("Y", "YES", "1", "TRUE", "O", "설치", "있음")
+
+
+def _select_schoolinfo_row(rows: list[dict], school: str) -> dict | None:
+    code = os.getenv(f"SCHOOLINFO_{school}_SCHUL_CODE") or os.getenv("SCHOOLINFO_SCHUL_CODE")
+    name = os.getenv(f"SCHOOLINFO_{school}_SCHUL_NM") or os.getenv("SCHOOLINFO_SCHUL_NM")
+    if code:
+        return next((r for r in rows if str(r.get("SCHUL_CODE")) == code), None)
+    if name:
+        return next((r for r in rows if name in str(r.get("SCHUL_NM", ""))), None)
+    # 코드·이름 미지정(범용 데모) 시에만 첫 행. 지정했는데 못 찾으면 None → 프리셋 폴백.
+    return rows[0] if rows else None
+
+
+def _fetch_schoolinfo_internal(school: str, region: str) -> dict | None:
+    key = _schoolinfo_key()
+    if not key:
+        return None
+    try:
+        data = {
+            "apiKey": key,
+            "apiType": SCHOOLINFO_API_TYPE_COUNSELING,
+            # 당해년도 공시는 미확정(값 뒤집힘·필드 누락) → 직전 완료 연도 기본.
+            "pbanYr": os.getenv("SCHOOLINFO_PBAN_YR", str(datetime.now().year - 1)),
+            **_schoolinfo_params(region, school),
+        }
+        r = httpx.post(os.getenv("SCHOOLINFO_API_ENDPOINT", SCHOOLINFO_ENDPOINT), data=data, timeout=8.0)
+        r.raise_for_status()
+        payload = r.json()
+        if payload.get("resultCode") != "success":
+            return None
+        rows = payload.get("list") or []
+        if isinstance(rows, dict):
+            rows = [rows]
+        row = _select_schoolinfo_row(rows, school)
+        if not row:
+            return None
+        school_name = row.get("SCHUL_NM") or "조회 학교"
+        wee = _yn(row.get("WEE_CINSTL_YN"))
+        internal_counsel = _yn(row.get("INNER_CNSL_SPLST_OPER_YN"))
+        counsel_count = row.get("COSE_CNSL_TLGM_TCR_FGR")
+        note = (
+            f"{school_name} 학교알리미 기준 · "
+            f"WEE클래스 {'설치' if wee else '미설치'} · "
+            f"내부상담전문가 {'운영' if internal_counsel else '미운영'}"
+        )
+        if counsel_count is not None:
+            note += f" · 내부상담실적 {counsel_count}건"
+        return {
+            "kind": "교내 Wee클래스",
+            "available": wee,
+            "note": note,
+            "source": "학교알리미 OpenAPI",
+            "school_name": school_name,
+            "school_code": row.get("SCHUL_CODE"),
+            "internal_counselor": internal_counsel,
+            "internal_counsel_count": counsel_count,
+            **_live_source_meta("학교알리미 OpenAPI"),
+        }
+    except Exception:
+        return None
 
 
 def _fetch_live(kind: str, center: list[float]) -> list[dict] | None:
@@ -149,7 +272,8 @@ def _fetch_live(kind: str, center: list[float]) -> list[dict] | None:
             live = [{"name": it.get("yadmNm"),
                      "addr": f"{it.get('addr')} (약 {d}km)" if it.get("addr") else f"약 {d}km",
                      "tel": it.get("telno"), "source": "HIRA 병원정보(실시간·거리순)",
-                     "lat": lat, "lng": lng, "group": "medical"}
+                     "lat": lat, "lng": lng, "group": "medical",
+                     **_live_source_meta("HIRA 병원정보 실시간 API")}
                     for d, it, lat, lng in scored[:5]]
             if live:
                 return live
@@ -184,28 +308,40 @@ def match(case_resources: list[str], school: str, region: str | None = None, col
 
     for kind in case_resources:
         if kind == "wee_class":
-            internal_out.append({
-                "kind": "교내 Wee클래스",
-                "available": internal["wee_class"],
-                "note": internal["note"],
-                "source": "학교알리미 OpenAPI",
-            })
-            if internal["wee_class"]:
+            live_internal = _fetch_schoolinfo_internal(school, region)
+            if live_internal is not None:
+                internal_out.append(live_internal)
+            else:
+                internal_out.append({
+                    "kind": "교내 Wee클래스",
+                    "available": internal["wee_class"],
+                    "note": internal["note"],
+                    "source": "학교알리미 데모 프리셋",
+                    **_source_meta("preset", "학교알리미 데모 프리셋", "온프레미스 기본값은 학교알리미 OpenAPI를 호출하지 않음"),
+                })
+            if internal_out[-1]["available"]:
                 points.append({"kind": "교내 Wee클래스", "name": "교내 Wee클래스",
                                "lat": center[0] + 0.0008, "lng": center[1] + 0.0008,
                                "group": "wee"})
         elif kind in ("112_신고", "학교폭력대책심의위원회"):
             internal_out.append({"kind": kind, "available": True,
-                                 "note": "법정 절차 · 교내/관할 연계", "source": "법령 절차"})
+                                 "note": "법정 절차 · 교내/관할 연계", "source": "법령 절차",
+                                 **_source_meta("curated", "법령 절차 큐레이션", None)})
         else:
             live = _fetch_live(kind, center)
             if live is not None:
                 _save_to_cache(kind, live, region)
                 items, mode = live, "실시간"
+                meta = _source_meta("live", f"{kind} 실시간 API", None)
             else:
-                items = cache.get(f"{region}:{kind}") or _seed_for(kind, center)
+                cached_items = cache.get(f"{region}:{kind}")
+                if cached_items:
+                    items = _items_with_source(cached_items, "cached", f"{kind} 최근 성공 캐시", "실시간 API 실패 또는 키 없음")
+                else:
+                    items = _seed_for(kind, center)
                 mode = "캐시 폴백"
-            external_out.append({"kind": kind, "source_mode": mode, "items": items})
+                meta = _source_meta("cached", f"{kind} 시드 캐시", "실시간 API 실패 또는 키 없음")
+            external_out.append({"kind": kind, "source_mode": mode, "items": items, **meta})
             for it in items:
                 if it.get("lat") and it.get("lng"):
                     points.append({"kind": kind, "name": it.get("name"),

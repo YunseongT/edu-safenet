@@ -21,14 +21,15 @@ export default function Evidence({ data }) {
       {resources.internal.map((r, i) => (
         <div key={i} className={`res ${r.available ? "ok" : "no"}`}>
           <b>{r.kind}</b> — {r.available ? "보유" : "미보유"} · {r.note}
-          <div className="law-src">출처: {r.source}</div>
+          <div className="law-src">출처: {r.source_name || r.source} · {r.source_type || "unknown"}</div>
         </div>
       ))}
 
-      <h3>교외 자원 <span className="muted">· 실시간 + 캐시 폴백</span></h3>
+      <h3>교외 자원 <span className="muted">· 출처 상태 표시</span></h3>
       {resources.external.map((e, i) => (
         <div key={i} className="res">
           <b>{e.kind}</b> <span className={`mode ${e.source_mode === "실시간" ? "live" : ""}`}>{e.source_mode}</span>
+          <div className="law-src">출처: {e.source_name || e.kind} · {e.source_type || "unknown"}</div>
           {e.items.map((it, j) => (
             <div key={j} className="res-item">{it.name} · {it.addr} · {it.tel} <span className="law-src">({it.source})</span></div>
           ))}

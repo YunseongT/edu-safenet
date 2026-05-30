@@ -66,7 +66,10 @@ def verify(report_text: str) -> dict:
         )
     except Exception:
         llm_flag = "검증기 호출 실패(규칙 점검만 적용)"
-    passed = not rule_hits and llm_flag.strip() in ("없음", "없음.", "")
+    # 결정적 게이트 = rule_hits(금지어 스캔). LLM은 보조 판정.
+    # '없음' 포함 & 금지어 미인용이면 통과. 실패/빈응답은 fail-safe(검토 필요).
+    llm_clean = "없음" in llm_flag and not any(b in llm_flag for b in _BANNED)
+    passed = not rule_hits and llm_clean
     return {"passed": passed, "rule_hits": rule_hits, "llm_review": llm_flag}
 
 

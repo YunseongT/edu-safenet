@@ -1,5 +1,6 @@
 // 인메모리 데이터 (backend/app/seed.py + db 포팅). 정적 데모: 새로고침 시 초기화.
 import { assess, SCHOOL_PRESETS } from "./engine";
+import { dashboardStats } from "./dashboardStats";
 
 const STUDENTS = [
   { id: 1, token: "S-A1F3", display_name: "학생 가 (자해 위기)", school: "A" },
@@ -71,6 +72,6 @@ export const store = {
       const b = (by_school[r.school] ||= { green: 0, yellow: 0, red: 0, none: 0 });
       b[r.color] = (b[r.color] || 0) + 1;
     }
-    return { students: rows, by_school, reds: rows.filter((r) => r.color === "red"), total: rows.length };
+    return { students: rows, by_school, reds: rows.filter((r) => r.color === "red"), total: rows.length, stats: dashboardStats() };
   },
 };
