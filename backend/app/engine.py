@@ -9,6 +9,7 @@ from .cases import (
     DEFAULT_COMPOSITE_FACTOR,
     FLOOR_COMBOS,
     GENERAL_FACTORS,
+    SCALE_FACTORS,
 )
 
 # 학교별 임계값(학교알리미 자원역량 근거). 자원 부족 학교일수록 경계 낮음(조기경보).
@@ -28,10 +29,41 @@ def _scan(text: str, keywords):
     return hits, score
 
 
-def assess(text: str, school: str = "A") -> dict:
+def combine_obs(journal: str, counsel: str = "") -> str:
+    """일지 + 상담기록을 한 텍스트로 합쳐 스캔 대상으로. 덱: 일지·상담기록 합산 산출."""
+    counsel = (counsel or "").strip()
+    return f"{journal}\n[상담기록] {counsel}" if counsel else journal
+
+
+def _scan_scores(scores: dict | None):
+    """검사점수 척도 → 가중치·floor. 미입력·미정의·기준미달은 무시(빈 결과)."""
+    hits, score, floor_reasons = [], 0, []
+    if not scores:
+        return hits, score, floor_reasons
+    for key, cfg in SCALE_FACTORS.items():
+        if scores.get(key) in (None, ""):
+            continue
+        try:
+            val = float(scores[key])
+        except (TypeError, ValueError):
+            continue
+        if val >= cfg["red"]:
+            w, level = cfg["weight_red"], "red"
+        elif val >= cfg["yellow"]:
+            w, level = cfg["weight_yellow"], "yellow"
+        else:
+            continue
+        hits.append({"key": key, "label": cfg["label"], "value": val, "weight": w, "level": level})
+        score += w
+        if cfg.get("floor_at") is not None and val >= cfg["floor_at"]:
+            floor_reasons.append(f"{cfg['label']} 고위험 점수({val:g})")
+    return hits, score, floor_reasons
+
+
+def assess(text: str, school: str = "A", scores: dict | None = None) -> dict:
     preset = SCHOOL_PRESETS.get(school, SCHOOL_PRESETS["A"])
 
-    # 1) 유형별 + 일반 요인 탐지
+    # 1) 유형별 + 일반 요인 + 검사점수 탐지
     categories = {}
     for cat_id, cfg in CATEGORIES.items():
         hits, sub = _scan(text, cfg["keywords"])
@@ -41,9 +73,10 @@ def assess(text: str, school: str = "A") -> dict:
                 "subscore": sub, "hits": hits,
             }
     gen_hits, gen_score = _scan(text, GENERAL_FACTORS)
+    scale_hits, scale_score, scale_floor = _scan_scores(scores)
 
     active = set(categories)
-    raw = sum(c["subscore"] for c in categories.values()) + gen_score
+    raw = sum(c["subscore"] for c in categories.values()) + gen_score + scale_score
 
     # 2) 복합 배수
     factor = 1.0
@@ -62,6 +95,7 @@ def assess(text: str, school: str = "A") -> dict:
         if combo.issubset(active):
             labels = " + ".join(CATEGORIES[c]["label"] for c in combo)
             floor_reasons.append(f"고위험 복합조합({labels})")
+    floor_reasons += scale_floor  # 검사점수 고위험(자살위험 문항 등) → 즉시 적색
 
     # 4) 색 결정
     if floor_reasons:
@@ -82,6 +116,7 @@ def assess(text: str, school: str = "A") -> dict:
         "floor_reasons": floor_reasons,
         "categories": categories,
         "general_factors": {"hits": gen_hits, "score": gen_score},
+        "scale_factors": {"hits": scale_hits, "score": scale_score},
         "labels": [c["label"] for c in categories.values()],
         "school": {"key": school, **preset},
     }

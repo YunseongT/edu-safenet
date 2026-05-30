@@ -45,6 +45,12 @@ export default function Signal({ result }) {
             <span className="hits"> {rule.general_factors.hits.map((h) => `${h.keyword}+${h.weight}`).join(" ")}</span>
           </div>
         )}
+        {rule.scale_factors?.score > 0 && (
+          <div className="bd-row">
+            <b>검사점수</b>: {rule.scale_factors.score}점
+            <span className="hits"> {rule.scale_factors.hits.map((h) => `${h.label} ${h.value}(${h.level})+${h.weight}`).join(" · ")}</span>
+          </div>
+        )}
         <div className="bd-row calc">
           원점수 {rule.raw_score} × 복합배수 {rule.composite_factor} = {rule.score}
           {" · "}임계값 {rule.school.name}: 황{rule.school.yellow}/적{rule.school.red}

@@ -75,6 +75,8 @@ export default function App() {
   const [students, setStudents] = useState([]);
   const [studentId, setStudentId] = useState(null);
   const [text, setText] = useState("");
+  const [counsel, setCounsel] = useState("");      // 상담기록(선택) — 일지와 합쳐 산출
+  const [scores, setScores] = useState({});        // 검사점수(선택) — {ampq, depression, suicide_risk}
   const [live, setLive] = useState(null);
   const [viewing, setViewing] = useState(null);
   const [evidence, setEvidence] = useState(null);
@@ -162,30 +164,43 @@ export default function App() {
     } finally { setNoteSaving(false); }
   }
 
-  // sch·reg 인자로 프리셋을 명시 전달(변경 시 stale 클로저 방지).
-  function onText(v, sch = school, reg = region) {
+  // sch·reg·cns·scs 인자로 명시 전달(변경 시 stale 클로저 방지).
+  function onText(v, sch = school, reg = region, cns = counsel, scs = scores) {
     setText(v);
     clearTimeout(debounce.current);
-    if (!v.trim()) { setLive(null); setEvidence(null); return; }
+    // 일지 없이 상담기록·검사점수만으로도 라이브 평가 가능.
+    const hasInput = v.trim() || cns.trim() || Object.values(scs).some((x) => x !== "" && x != null);
+    if (!hasInput) { setLive(null); setEvidence(null); return; }
     debounce.current = setTimeout(async () => {
       try {
-        const r = await api.assess(v, sch);
+        const r = await api.assess(v, sch, cns, scs);
         setLive(r);
-        if (isTeacher && isCrisis(r.rule.color)) setEvidence(await api.evidence(v, sch, reg));
+        if (isTeacher && isCrisis(r.rule.color)) setEvidence(await api.evidence(v, sch, reg, cns, scs));
         else setEvidence(null);
       } catch { /* ignore */ }
     }, 450);
   }
 
-  // 학교/지역 프리셋 변경 → 현재 입력 즉시 재평가(effect 대신 핸들러에서 처리).
+  // 학교/지역 프리셋·상담기록·검사점수 변경 → 현재 입력 즉시 재평가.
   function onSchoolChange(sch) {
     setSchool(sch);
-    if (text.trim()) onText(text, sch, region);
+    onText(text, sch, region);
   }
 
   function onRegionChange(reg) {
     setRegion(reg);
-    if (text.trim()) onText(text, school, reg);
+    onText(text, school, reg);
+  }
+
+  function onCounselChange(v) {
+    setCounsel(v);
+    onText(text, school, region, v, scores);
+  }
+
+  function onScoreChange(key, raw) {
+    const next = { ...scores, [key]: raw === "" ? "" : Number(raw) };
+    setScores(next);
+    onText(text, school, region, counsel, next);
   }
 
   async function save() {
@@ -193,18 +208,18 @@ export default function App() {
     savingRef.current = true;
     setBusy(true);
     try {
-      await api.addJournal(studentId, text, school);
-      setText(""); setLive(null); setEvidence(null);
+      await api.addJournal(studentId, text, school, counsel, scores);
+      setText(""); setCounsel(""); setScores({}); setLive(null); setEvidence(null);
       loadHistory(studentId);  // 저장된 신호+보조의견(llm_context)을 다시 불러 viewing에 반영.
     } finally { setBusy(false); savingRef.current = false; }
   }
 
   const studentName = students.find((s) => s.id === studentId)?.display_name || "";
 
-  async function genPackage(txt, sch, reg = region) {
+  async function genPackage(txt, sch, reg = region, cns = "", scs = {}) {
     if (!txt) return;
     setPkgBusy(true);
-    try { setPkg(await api.package(txt, sch, reg)); } finally { setPkgBusy(false); }
+    try { setPkg(await api.package(txt, sch, reg, cns, scs)); } finally { setPkgBusy(false); }
   }
 
   // 교사 탭: 표시 중 신호(라이브 또는 저장된 과거) 기준.
@@ -284,6 +299,25 @@ export default function App() {
                   <h2>관찰 일지 입력 <small className="muted">· 교사: 기록·대응</small></h2>
                   <textarea value={text} onChange={(e) => onText(e.target.value)}
                     placeholder="예) 민수가 며칠째 결석하고, 죽고 싶다고 말했다..." rows={5} />
+                  <details className="extra-inputs">
+                    <summary className="muted">+ 상담기록 · 검사점수 (선택 — 일지와 합산해 신호 산출)</summary>
+                    <textarea value={counsel} onChange={(e) => onCounselChange(e.target.value)}
+                      placeholder="상담교사 면담 기록(선택). 일지와 합쳐 키워드 스캔에 반영됩니다." rows={3} />
+                    <div className="scores-row">
+                      <label>정서·행동검사(AMPQ)
+                        <input type="number" min="0" value={scores.ampq ?? ""}
+                          onChange={(e) => onScoreChange("ampq", e.target.value)} /></label>
+                      <label>우울척도
+                        <input type="number" min="0" value={scores.depression ?? ""}
+                          onChange={(e) => onScoreChange("depression", e.target.value)} /></label>
+                      <label>자살위험 문항
+                        <input type="number" min="0" value={scores.suicide_risk ?? ""}
+                          onChange={(e) => onScoreChange("suicide_risk", e.target.value)} /></label>
+                    </div>
+                    <div className="muted" style={{ fontSize: "0.78rem" }}>
+                      ※ 검사 cutoff는 데모 기준값. 자살위험 문항 2↑는 바닥선(즉시 적색).
+                    </div>
+                  </details>
                   <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
                     <button className="save" onClick={save} disabled={busy || !text.trim()}>
                       {busy ? "저장 중..." : "일지 저장 (신호등 확정)"}
@@ -345,7 +379,8 @@ export default function App() {
 
           {shownColor && pkgText && (
             <PackageGen color={shownColor} busy={pkgBusy}
-              onGen={() => genPackage(pkgText, live ? school : (viewing?.school || school))}
+              onGen={() => genPackage(pkgText, live ? school : (viewing?.school || school), region,
+                live ? counsel : "", live ? scores : {})}
               note={canEdit ? "교사가 시스템·AI 의견을 검토한 뒤 도움이 필요하다고 판단하면 생성합니다." : "사안 처리를 위해 필요한 패키지를 생성합니다."}>
               {evidence && <Evidence data={evidence} />}
             </PackageGen>

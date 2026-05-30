@@ -5,7 +5,7 @@ engine(규칙)이 최종 결정한다. LLM 실패 시에도 규칙 결과는 항
 """
 import json
 
-from .engine import assess
+from .engine import assess, combine_obs
 from .llm import chat
 
 _SYS = "너는 학교 위기지원 시스템의 보조 도구다. 판단·처방·결정은 절대 하지 말고, 사실 정리와 보조 의견만 제공한다."
@@ -45,10 +45,13 @@ def analyze_once(raw_text: str, rule_result: dict) -> dict:
         return {"refined_text": raw_text, "llm_context": ""}
 
 
-def process(raw_text: str, school: str = "A", llm: bool = True) -> dict:
+def process(raw_text: str, school: str = "A", llm: bool = True,
+            counsel: str = "", scores: dict | None = None) -> dict:
     """llm=False면 LLM 보조 생략(규칙만). 라이브 미리보기(/assess)는 타자마다 호출되므로
-    LLM 미사용 — reasoning 모델 토큰 폭주·지연 방지. 색·분류는 항상 규칙이 결정."""
-    rule = assess(raw_text, school)          # 규칙: 결정적 (색·floor·분류 최종)
+    LLM 미사용 — reasoning 모델 토큰 폭주·지연 방지. 색·분류는 항상 규칙이 결정.
+
+    counsel(상담기록)은 일지와 합쳐 스캔, scores(검사점수)는 척도 가중에 반영(덱: 합산 산출)."""
+    rule = assess(combine_obs(raw_text, counsel), school, scores)  # 규칙: 결정적 (색·floor·분류 최종)
     if not llm:
         return {"refined_text": raw_text, "rule": rule, "llm_context": ""}
     analysis = analyze_once(raw_text, rule)   # LLM 보조: 정제+맥락(1회 호출)

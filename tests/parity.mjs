@@ -11,7 +11,7 @@ const golden = JSON.parse(readFileSync(resolve(here, "golden.json"), "utf-8"));
 
 let fail = 0;
 for (const g of golden) {
-  const r = assess(g.text, g.school);
+  const r = assess(g.text, g.school, g.scores);
   const cats = JSON.stringify([...Object.keys(r.categories)].sort());
   const labels = JSON.stringify([...r.labels].sort());
   const ok =
@@ -20,17 +20,19 @@ for (const g of golden) {
     r.floor_triggered === g.floor &&
     cats === JSON.stringify(g.categories) &&
     labels === JSON.stringify(g.labels) &&
-    r.general_factors.score === g.gen_score;
+    r.general_factors.score === g.gen_score &&
+    r.scale_factors.score === g.scale_score;
   if (!ok) {
     fail++;
     console.error(
       `DRIFT [${g.name}]\n` +
-      `  color:      py=${g.color} js=${r.color}\n` +
-      `  score:      py=${g.score} js=${r.score}\n` +
-      `  floor:      py=${g.floor} js=${r.floor_triggered}\n` +
-      `  categories: py=${JSON.stringify(g.categories)} js=${cats}\n` +
-      `  labels:     py=${JSON.stringify(g.labels)} js=${labels}\n` +
-      `  gen_score:  py=${g.gen_score} js=${r.general_factors.score}`,
+      `  color:       py=${g.color} js=${r.color}\n` +
+      `  score:       py=${g.score} js=${r.score}\n` +
+      `  floor:       py=${g.floor} js=${r.floor_triggered}\n` +
+      `  categories:  py=${JSON.stringify(g.categories)} js=${cats}\n` +
+      `  labels:      py=${JSON.stringify(g.labels)} js=${labels}\n` +
+      `  gen_score:   py=${g.gen_score} js=${r.general_factors.score}\n` +
+      `  scale_score: py=${g.scale_score} js=${r.scale_factors.score}`,
     );
   }
 }

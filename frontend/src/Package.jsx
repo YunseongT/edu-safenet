@@ -31,7 +31,8 @@ export default function Package({ data, onClose }) {
           <div key={l.title} className="pkg-law">· {l.link
             ? <a href={l.link} target="_blank" rel="noreferrer">{l.title}</a>
             : l.title}
-            {l.verified && <span className="vbadge ok" style={{ marginLeft: 6 }}>✓ 법제처 확인</span>}</div>
+            {l.verified && <span className="vbadge ok" style={{ marginLeft: 6 }}>✓ 법제처 확인</span>}
+            {l.official_link && <a href={l.official_link} target="_blank" rel="noreferrer" className="law-src" style={{ marginLeft: 6 }}>법제처 원문↗</a>}</div>
         ))}
 
         <h3>자원 지도 <span className="muted">· V-WORLD · {data.resources.map?.region_label || "거리순 매칭"} 기준</span></h3>

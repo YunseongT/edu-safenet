@@ -31,6 +31,14 @@ export const GENERAL_FACTORS = [
   ["자기 머리", 2], ["머리를 박", 2], ["벽에 머리", 3],
 ];
 
+// 검사점수 척도(backend cases.py SCALE_FACTORS 포팅). 값>=red→weight_red, >=yellow→weight_yellow.
+// floor_at 이상은 즉시 적색. cutoff는 데모 기준값(실배포 시 검사 공식 매뉴얼 기준으로 교체).
+export const SCALE_FACTORS = {
+  ampq: { label: "정서·행동특성검사(AMPQ)", yellow: 25, red: 31, weight_yellow: 2, weight_red: 4 },
+  depression: { label: "우울척도", yellow: 16, red: 21, weight_yellow: 2, weight_red: 3 },
+  suicide_risk: { label: "자살위험 문항", yellow: 1, red: 2, weight_yellow: 2, weight_red: 4, floor_at: 2 },
+};
+
 // floor 복합조합: 부분집합이 모두 활성이면 floor.
 export const FLOOR_COMBOS = [["special_ed", "violence"]];
 

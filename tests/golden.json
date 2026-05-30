@@ -3,6 +3,7 @@
     "name": "자해 시드",
     "text": "민수가 죽고 싶다고 말했고 손목에 흉터가 보였다.",
     "school": "A",
+    "scores": null,
     "color": "red",
     "score": 7.0,
     "floor": true,
@@ -12,12 +13,14 @@
     "labels": [
       "자해"
     ],
-    "gen_score": 0
+    "gen_score": 0,
+    "scale_score": 0
   },
   {
     "name": "학폭 시드",
     "text": "나가 따돌림을 당하고 욕설과 협박을 들었다고 한다.",
     "school": "A",
+    "scores": null,
     "color": "yellow",
     "score": 6.0,
     "floor": false,
@@ -27,12 +30,14 @@
     "labels": [
       "학교폭력"
     ],
-    "gen_score": 0
+    "gen_score": 0,
+    "scale_score": 0
   },
   {
     "name": "아동학대 시드",
     "text": "다의 팔에 멍이 보였고 집에 가기 싫다며 맞았다고 말했다.",
     "school": "A",
+    "scores": null,
     "color": "red",
     "score": 7.0,
     "floor": true,
@@ -42,12 +47,14 @@
     "labels": [
       "아동학대"
     ],
-    "gen_score": 0
+    "gen_score": 0,
+    "scale_score": 0
   },
   {
     "name": "특수+학폭 시드",
     "text": "라는 발달이 느린 편인데 괴롭힘과 따돌림을 당했다.",
     "school": "B",
+    "scores": null,
     "color": "red",
     "score": 9.0,
     "floor": true,
@@ -59,83 +66,174 @@
       "특수교육",
       "학교폭력"
     ],
-    "gen_score": 0
+    "gen_score": 0,
+    "scale_score": 0
   },
   {
     "name": "녹색대조",
     "text": "마는 평소처럼 친구들과 어울리고 수업에 잘 참여했다.",
     "school": "A",
+    "scores": null,
     "color": "green",
     "score": 0.0,
     "floor": false,
     "categories": [],
     "labels": [],
-    "gen_score": 0
+    "gen_score": 0,
+    "scale_score": 0
   },
   {
     "name": "일반신호",
     "text": "지수가 점심을 거르고 혼자 앉아 말이 없었다.",
     "school": "A",
+    "scores": null,
     "color": "green",
     "score": 3.0,
     "floor": false,
     "categories": [],
     "labels": [],
-    "gen_score": 3
+    "gen_score": 3,
+    "scale_score": 0
   },
   {
     "name": "오탐:보호자",
     "text": "보호자에게 연락함.",
     "school": "A",
+    "scores": null,
     "color": "green",
     "score": 0.0,
     "floor": false,
     "categories": [],
     "labels": [],
-    "gen_score": 0
+    "gen_score": 0,
+    "scale_score": 0
   },
   {
     "name": "오탐:맞았",
     "text": "시험 답이 맞았다.",
     "school": "A",
+    "scores": null,
     "color": "green",
     "score": 0.0,
     "floor": false,
     "categories": [],
     "labels": [],
-    "gen_score": 0
+    "gen_score": 0,
+    "scale_score": 0
   },
   {
     "name": "오탐:멍하니",
     "text": "멍하니 창밖을 봤다.",
     "school": "A",
+    "scores": null,
     "color": "green",
     "score": 0.0,
     "floor": false,
     "categories": [],
     "labels": [],
-    "gen_score": 0
+    "gen_score": 0,
+    "scale_score": 0
   },
   {
     "name": "오탐:의미없",
     "text": "의미 없는 숙제를 했다.",
     "school": "A",
+    "scores": null,
     "color": "green",
     "score": 0.0,
     "floor": false,
     "categories": [],
     "labels": [],
-    "gen_score": 0
+    "gen_score": 0,
+    "scale_score": 0
   },
   {
     "name": "오탐:서울",
     "text": "서울에서 전학 옴.",
     "school": "A",
+    "scores": null,
     "color": "green",
     "score": 0.0,
     "floor": false,
     "categories": [],
     "labels": [],
-    "gen_score": 0
+    "gen_score": 0,
+    "scale_score": 0
+  },
+  {
+    "name": "점수:자살위험floor",
+    "text": "보호자 상담 예정.",
+    "school": "A",
+    "scores": {
+      "suicide_risk": 2
+    },
+    "color": "red",
+    "score": 4.0,
+    "floor": true,
+    "categories": [],
+    "labels": [],
+    "gen_score": 0,
+    "scale_score": 4
+  },
+  {
+    "name": "점수:AMPQ적색",
+    "text": "특이사항 없이 평이함.",
+    "school": "A",
+    "scores": {
+      "ampq": 33
+    },
+    "color": "yellow",
+    "score": 4.0,
+    "floor": false,
+    "categories": [],
+    "labels": [],
+    "gen_score": 0,
+    "scale_score": 4
+  },
+  {
+    "name": "점수:우울황색",
+    "text": "조용한 편.",
+    "school": "A",
+    "scores": {
+      "depression": 18
+    },
+    "color": "green",
+    "score": 2.0,
+    "floor": false,
+    "categories": [],
+    "labels": [],
+    "gen_score": 0,
+    "scale_score": 2
+  },
+  {
+    "name": "점수:기준미달무시",
+    "text": "조용한 편.",
+    "school": "A",
+    "scores": {
+      "depression": 5,
+      "ampq": 10
+    },
+    "color": "green",
+    "score": 0.0,
+    "floor": false,
+    "categories": [],
+    "labels": [],
+    "gen_score": 0,
+    "scale_score": 0
+  },
+  {
+    "name": "점수+키워드합산",
+    "text": "지수가 점심을 거르고 혼자 앉아 말이 없었다.",
+    "school": "A",
+    "scores": {
+      "ampq": 26
+    },
+    "color": "yellow",
+    "score": 5.0,
+    "floor": false,
+    "categories": [],
+    "labels": [],
+    "gen_score": 3,
+    "scale_score": 2
   }
 ]

@@ -12,7 +12,7 @@ from pydantic import BaseModel
 from .cases import CASE_RESOURCES
 from .dashboard_stats import stats as dashboard_stats
 from .db import get_conn, init_db
-from .engine import SCHOOL_PRESETS, assess
+from .engine import SCHOOL_PRESETS, assess, combine_obs
 from .law import laws_for
 from .llm import LLM_ENABLED, LLM_MODEL
 from .pipeline import process, refine
@@ -71,8 +71,8 @@ def students():
 def journals(student_id: int):
     with get_conn() as conn:
         rows = conn.execute(
-            "SELECT id, raw_text, refined_text, llm_context, created_at FROM journal "
-            "WHERE student_id=? ORDER BY id", (student_id,)).fetchall()
+            "SELECT id, raw_text, refined_text, llm_context, counsel_text, scores_json, created_at "
+            "FROM journal WHERE student_id=? ORDER BY id", (student_id,)).fetchall()
         sigs = conn.execute(
             "SELECT id, score, color, breakdown_json, created_at, teacher_note, note_at "
             "FROM signal_history WHERE student_id=? ORDER BY id", (student_id,)).fetchall()
@@ -133,17 +133,20 @@ class JournalIn(BaseModel):
     student_id: int
     text: str
     school: str = "A"
+    counsel: str = ""          # 상담기록(선택) — 일지와 합쳐 신호 산출
+    scores: dict = {}          # 검사점수(선택) — 척도 가중에 반영
 
 
 @app.post("/journals")
 def add_journal(body: JournalIn):
-    result = process(body.text, body.school)
+    result = process(body.text, body.school, counsel=body.counsel, scores=body.scores)
     now = datetime.now().isoformat(timespec="seconds")
     with get_conn() as conn:
         cur = conn.execute(
-            "INSERT INTO journal(student_id, raw_text, refined_text, llm_context, created_at) "
-            "VALUES(?,?,?,?,?)",
-            (body.student_id, body.text, result["refined_text"], result["llm_context"], now))
+            "INSERT INTO journal(student_id, raw_text, refined_text, llm_context, "
+            "counsel_text, scores_json, created_at) VALUES(?,?,?,?,?,?,?)",
+            (body.student_id, body.text, result["refined_text"], result["llm_context"],
+             body.counsel, json.dumps(body.scores, ensure_ascii=False), now))
         conn.execute(
             "INSERT INTO signal_history(student_id, score, color, breakdown_json, created_at) "
             "VALUES(?,?,?,?,?)",
@@ -174,12 +177,14 @@ class AssessIn(BaseModel):
     text: str
     school: str = "A"
     region: str | None = None  # 자원지도 시군구 프리셋(없으면 기본 권역)
+    counsel: str = ""          # 상담기록(선택)
+    scores: dict = {}          # 검사점수(선택)
 
 
 @app.post("/assess")
 def assess_only(body: AssessIn):
     """저장 없이 즉석 평가(라이브 신호등 미리보기용). 타자마다 호출 → 규칙만(LLM 미사용)."""
-    return process(body.text, body.school, llm=False)
+    return process(body.text, body.school, llm=False, counsel=body.counsel, scores=body.scores)
 
 
 def _resources_and_laws(rule: dict, school: str, live: bool = False):
@@ -202,7 +207,7 @@ def _resources_and_laws(rule: dict, school: str, live: bool = False):
 @app.post("/evidence")
 def evidence(body: AssessIn):
     """근거·자원 패널 — 규칙 분류 기준 법령 큐레이션 + 자원매칭(실시간+캐시폴백)."""
-    rule = assess(body.text, body.school)
+    rule = assess(combine_obs(body.text, body.counsel), body.school, body.scores)
     resource_kinds, laws = _resources_and_laws(rule, body.school)
     return {
         "color": rule["color"],
@@ -215,10 +220,10 @@ def evidence(body: AssessIn):
 @app.post("/package")
 def committee_package(body: AssessIn):
     """위기관리위원회 참고자료 패키지 — 신호등+법령+자원+보고서초안(검증패스) 묶음."""
-    rule = assess(body.text, body.school)
+    rule = assess(combine_obs(body.text, body.counsel), body.school, body.scores)
     resource_kinds, laws = _resources_and_laws(rule, body.school, live=True)
     refined = refine(body.text)
-    report = build_report(refined, rule)
+    report = build_report(refined, rule, laws)  # 검색된 법령을 보고서 초안에 그라운딩(RAG)
     return {
         "signal": {"color": rule["color"], "score": rule["score"],
                    "labels": rule["labels"], "floor_reasons": rule["floor_reasons"]},

@@ -168,3 +168,13 @@ textarea { width: 100%; background: #0e0e0e; color: #eee; border: 1px solid #333
 .tn-save { background: #2d6cdf; color: #fff; border: 0; padding: 8px 14px; border-radius: 6px; cursor: pointer; font-size: 13px; }
 .tn-save:disabled { background: #333; cursor: not-allowed; }
 .note-flag { color: #7fa7ff; }
+
+/* 상담기록·검사점수 보조 입력 */
+.extra-inputs { margin: 8px 0; border: 1px solid #252525; border-radius: 8px; padding: 8px 10px; background: #0e0e0e; }
+.extra-inputs > summary { cursor: pointer; font-size: 13px; color: #9aa; list-style: none; }
+.extra-inputs > summary::-webkit-details-marker { display: none; }
+.extra-inputs[open] > summary { margin-bottom: 8px; }
+.extra-inputs textarea { margin-bottom: 8px; }
+.scores-row { display: flex; flex-wrap: wrap; gap: 10px; }
+.scores-row label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: #aaa; }
+.scores-row input { width: 88px; background: #0e0e0e; color: #eee; border: 1px solid #333; border-radius: 6px; padding: 6px 8px; font-size: 14px; }

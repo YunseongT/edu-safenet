@@ -1,5 +1,5 @@
 // 인메모리 데이터 (backend/app/seed.py + db 포팅). 정적 데모: 새로고침 시 초기화.
-import { assess, SCHOOL_PRESETS } from "./engine";
+import { assess, combineObs, SCHOOL_PRESETS } from "./engine";
 import { dashboardStats } from "./dashboardStats";
 
 const STUDENTS = [
@@ -45,10 +45,10 @@ export const store = {
   students: () => STUDENTS.map((s) => ({ id: s.id, token: s.token, display_name: s.display_name, school_id: s.school })),
   schools: () => Object.entries(SCHOOL_PRESETS).map(([k, v]) => ({ key: k, ...v })),
   journals: (id) => records[id] || { journals: [], signals: [] },
-  addJournal: (id, text, school) => {
-    const r = assess(text, school);
+  addJournal: (id, text, school, counsel = "", scores = null) => {
+    const r = assess(combineObs(text, counsel), school, scores);
     const created = new Date().toISOString().slice(0, 19);
-    records[id].journals.push({ id: ++_seq, raw_text: text, refined_text: text, created_at: created });
+    records[id].journals.push({ id: ++_seq, raw_text: text, refined_text: text, counsel_text: counsel, scores_json: JSON.stringify(scores || {}), created_at: created });
     records[id].signals.push({ id: ++_seq, score: r.score, color: r.color, breakdown: r, created_at: created, teacher_note: null, note_at: null });
     return r;
   },

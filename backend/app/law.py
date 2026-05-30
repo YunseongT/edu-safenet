@@ -148,8 +148,10 @@ def laws_for(labels_by_id: dict, live: bool = False) -> list[dict]:
             if live:
                 lv = _law_live(name, title)
                 if lv:
-                    entry["link"] = lv["link"]
+                    # link(조문 딥링크)은 유지 — 클릭 시 해당 조문이 바로 열린다.
+                    # 법제처 실시간 확인 결과는 verified 플래그 + 원문(전체법령 DRF) 링크로 부가.
                     entry["verified"] = lv["verified"]
+                    entry["official_link"] = lv["link"]
                     if lv["verified"]:
                         entry["source"] = law["source"] + " · 법제처 실시간 확인"
             out.append(entry)

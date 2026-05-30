@@ -57,6 +57,18 @@ GENERAL_FACTORS = [
     ("자기 머리", 2), ("머리를 박", 2), ("벽에 머리", 3),
 ]
 
+# 검사점수 척도 — 일지 텍스트 외 정량 신호(상담교사 검사결과). 덱: "일지+상담기록+검사점수 합산".
+# 값 >= red → weight_red, >= yellow → weight_yellow 가산. floor_at 있으면 그 이상은 즉시 적색.
+# cutoff는 데모 기준값 — 실배포 시 각 검사 공식 매뉴얼 기준(AMPQ-III 관심군 등)으로 교체.
+SCALE_FACTORS = {
+    "ampq": {"label": "정서·행동특성검사(AMPQ)", "yellow": 25, "red": 31,
+             "weight_yellow": 2, "weight_red": 4},
+    "depression": {"label": "우울척도", "yellow": 16, "red": 21,
+                   "weight_yellow": 2, "weight_red": 3},
+    "suicide_risk": {"label": "자살위험 문항", "yellow": 1, "red": 2,
+                     "weight_yellow": 2, "weight_red": 4, "floor_at": 2},
+}
+
 # floor 복합조합 — 이 부분집합이 모두 활성이면 floor.
 FLOOR_COMBOS = [
     {"special_ed", "violence"},  # 취약군 + 위해 → 즉시 적색

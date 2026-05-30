@@ -1,7 +1,7 @@
 // 두 가지 모드를 한 코드로:
 //  - 정적 배포(Cloudflare Pages): VITE_STATIC=1 → 백엔드 없이 브라우저 내 규칙 엔진(core/).
 //  - 온프레미스(이 맥): 기본 → FastAPI 백엔드 호출(로컬 LLM로 정제·맥락·보고서까지 라이브).
-import { assess } from "./core/engine";
+import { assess, combineObs } from "./core/engine";
 import { lawsFor } from "./core/law";
 import { match } from "./core/resources";
 import { getProtocols } from "./core/protocols";
@@ -34,14 +34,14 @@ const staticApi = {
   schools: () => ok(store.schools()),
   journals: (id) => ok(store.journals(id)),
   config: () => ok({ llm_enabled: false, demo_mode: true }),
-  assess: (text, school) => ok({ refined_text: text, rule: assess(text, school), llm_context: "" }),
-  addJournal: (id, text, school) => { store.addJournal(id, text, school); return ok({ ok: true }); },
+  assess: (text, school, counsel, scores) => ok({ refined_text: text, rule: assess(combineObs(text, counsel), school, scores), llm_context: "" }),
+  addJournal: (id, text, school, counsel, scores) => { store.addJournal(id, text, school, counsel, scores); return ok({ ok: true }); },
   signalNote: (sigId, note) => { const s = store.addNote(sigId, note); return ok({ ok: !!s, signal_id: sigId, teacher_note: note, note_at: s ? s.note_at : null }); },
-  evidence: (text, school, region) => { const r = assess(text, school);
+  evidence: (text, school, region, counsel, scores) => { const r = assess(combineObs(text, counsel), school, scores);
     return ok({ color: r.color, labels: r.labels, laws: lawsFor(r.categories), resources: match(resourceKinds(r.categories), school, region, r.color) }); },
-  package: (text, school, region) => { const r = assess(text, school);
+  package: (text, school, region, counsel, scores) => { const r = assess(combineObs(text, counsel), school, scores); const laws = lawsFor(r.categories);
     return ok({ signal: { color: r.color, score: r.score, labels: r.labels, floor_reasons: r.floor_reasons },
-      laws: lawsFor(r.categories), resources: match(resourceKinds(r.categories), school, region, r.color), report: buildReport(text, r) }); },
+      laws, resources: match(resourceKinds(r.categories), school, region, r.color), report: buildReport(text, r, laws) }); },
   dashboard: () => ok(store.dashboard()),
   protocols: (studentId) => { let active = [];
     if (studentId) { const sig = store.journals(studentId).signals; const last = sig[sig.length - 1];
@@ -62,6 +62,13 @@ const setFallbackState = (state) => {
   }
 };
 
+class HttpError extends Error {
+  constructor(status, url) {
+    super(`HTTP ${status} for ${url}`);
+    this.status = status;
+  }
+}
+
 const fetchWithTimeout = async (url, options, timeout = 120000) => {
   const controller = new AbortController();
   const id = setTimeout(() => controller.abort(), timeout);
@@ -71,19 +78,17 @@ const fetchWithTimeout = async (url, options, timeout = 120000) => {
     return res;
   } catch (e) {
     clearTimeout(id);
-    throw e;
+    throw e; // Network error or AbortError
   }
 };
 
 const fetchWithRetry = async (url, options, retries = 1) => {
-  // POST 요청(LLM 생성 등)은 재시도 시 서버에 중복 부하를 주므로 재시도하지 않음
   const actualRetries = (options && options.method === "POST") ? 0 : retries;
   
   for (let i = 0; i <= actualRetries; i++) {
     try {
-      // LLM 응답 대기를 위해 120초(120000ms) 타임아웃 적용
       const r = await fetchWithTimeout(url, options, 120000);
-      if (!r.ok) throw new Error(url);
+      if (!r.ok) throw new HttpError(r.status, url);
       setFallbackState(false);
       return await r.json();
     } catch (e) {
@@ -101,11 +106,11 @@ const backendApi = {
   schools: () => jget("/schools"),
   journals: (id) => jget(`/students/${id}/journals`),
   config: () => jget("/config"),
-  assess: (text, school) => jpost("/assess", { text, school }),
-  addJournal: (id, text, school) => jpost("/journals", { student_id: id, text, school }),
+  assess: (text, school, counsel, scores) => jpost("/assess", { text, school, counsel, scores }),
+  addJournal: (id, text, school, counsel, scores) => jpost("/journals", { student_id: id, text, school, counsel, scores }),
   signalNote: (sigId, note) => jpost(`/signals/${sigId}/note`, { note }),
-  evidence: (text, school, region) => jpost("/evidence", { text, school, region }),
-  package: (text, school, region) => jpost("/package", { text, school, region }),
+  evidence: (text, school, region, counsel, scores) => jpost("/evidence", { text, school, region, counsel, scores }),
+  package: (text, school, region, counsel, scores) => jpost("/package", { text, school, region, counsel, scores }),
   dashboard: () => jget("/dashboard"),
   protocols: (studentId) => jget(`/protocols${studentId ? `?student_id=${studentId}` : ""}`),
 };
@@ -120,7 +125,12 @@ function withFallback(primary, fallback) {
       }
       catch (e) { 
         console.warn(`backend ${k} 실패 → core 폴백`, e); 
-        setFallbackState(true);
+        // 524(Cloudflare Timeout) 등 HTTP 에러는 백엔드가 살아있으나 특정 요청만 실패한 것.
+        // TypeError(네트워크 단절) 또는 AbortError(프론트엔드 타임아웃)일 때만 글로벌 폴백(회색 배지) 적용.
+        // 502 Bad Gateway는 백엔드 서버 다운/터널 단절로 간주하여 폴백 적용.
+        if (!(e instanceof HttpError) || e.status === 502) {
+          setFallbackState(true);
+        }
         return fallback[k](...args); 
       }
     };
