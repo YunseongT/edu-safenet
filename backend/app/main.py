@@ -32,7 +32,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="Edu-SafeNet", lifespan=lifespan)
 _origins = os.getenv(
     "CORS_ORIGINS",
-    "http://localhost:5173,https://demo.yunseongt.com,https://safenet.yunseongt.com",
+    "http://localhost:5173,https://demo.yunseongt.com,https://safenet.yunseongt.com,https://safenet.aieduflare.com",
 ).split(",")
 app.add_middleware(
     CORSMiddleware,
