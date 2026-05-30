@@ -1,6 +1,6 @@
 # Root-level Cloudflare Workers config for native Workers Builds.
 # The GitHub Actions deployment still uses frontend/wrangler.toml.
-name = "safenetflare"
+name = "edu-safenet"
 compatibility_date = "2026-05-01"
 
 [assets]
