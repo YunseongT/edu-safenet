@@ -14,7 +14,7 @@ function hostBackend() {
   if (typeof window === "undefined") return "";
   const h = window.location.hostname;
   if (h === "localhost" || h === "127.0.0.1") return "http://localhost:8800";
-  if (h.endsWith("aieduflare.com")) return "https://api.yunseongt.com";
+  if (h.endsWith("aieduflare.com")) return "https://api.aieduflare.com";
   if (h.endsWith("yunseongt.com")) return "https://api.yunseongt.com";
   return "";  // 미지 호스트 → 백엔드 없음 → 정적(core) 폴백
 }
