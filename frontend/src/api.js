@@ -9,13 +9,17 @@ import { buildReport } from "./core/report";
 import { CASE_RESOURCES } from "./core/cases";
 import { store } from "./core/store";
 
-const STATIC = 
-  import.meta.env.VITE_STATIC === "1" || 
-  (import.meta.env.PROD && !import.meta.env.VITE_API_BASE) ||
-  (typeof window !== "undefined" && 
-   window.location.hostname !== "localhost" && 
-   window.location.hostname !== "127.0.0.1" && 
-   !import.meta.env.VITE_API_BASE);
+// 도메인별 백엔드 자동선택(병행 운영). 빌드 env(VITE_API_BASE) 주면 그걸로 강제.
+function hostBackend() {
+  if (typeof window === "undefined") return "";
+  const h = window.location.hostname;
+  if (h === "localhost" || h === "127.0.0.1") return "http://localhost:8800";
+  if (h.endsWith("aieduflare.com")) return "https://api.aieduflare.com";
+  if (h.endsWith("yunseongt.com")) return "https://api.yunseongt.com";
+  return "";  // 미지 호스트 → 백엔드 없음 → 정적(core) 폴백
+}
+const API_BASE = import.meta.env.VITE_API_BASE || hostBackend();
+const STATIC = import.meta.env.VITE_STATIC === "1" || !API_BASE;
 
 // ---------- 정적(core) 구현 ----------
 const ok = (v) => Promise.resolve(v);
@@ -46,7 +50,7 @@ const staticApi = {
 };
 
 // ---------- 백엔드(fetch) 구현 ----------
-const BASE = import.meta.env.VITE_API_BASE ?? "http://localhost:8800";
+const BASE = API_BASE || "http://localhost:8800";
 const jget = async (p) => { const r = await fetch(BASE + p); if (!r.ok) throw new Error(p); return r.json(); };
 const jpost = async (p, b) => { const r = await fetch(BASE + p, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(b) }); if (!r.ok) throw new Error(p); return r.json(); };
 const backendApi = {

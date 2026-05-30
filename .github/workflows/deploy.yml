@@ -30,8 +30,7 @@ jobs:
 
       - name: Build
         env:
-          # 공개 URL(비밀 아님). 터널 백엔드 호출용.
-          VITE_API_BASE: https://api.yunseongt.com
+          # VITE_API_BASE 미지정 → 런타임에 호스트(aieduflare/yunseongt)별 백엔드 자동선택(api.js hostBackend).
           # 도메인잠금 키(번들에 내장돼 어차피 공개). repo Secret으로 주입.
           VITE_VWORLD_KEY: ${{ secrets.VITE_VWORLD_KEY }}
         run: npm run build

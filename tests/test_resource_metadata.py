@@ -88,6 +88,59 @@ class ResourceMetadataTest(unittest.TestCase):
         self.assertEqual(internal["source_type"], "preset")
         self.assertNotIn("다른학교", internal.get("note", ""))
 
+    def test_hira_psychiatry_uses_center_radius_and_maps_coordinates(self):
+        class Response:
+            def raise_for_status(self):
+                return None
+
+            def json(self):
+                return {
+                    "response": {
+                        "body": {
+                            "items": {
+                                "item": [{
+                                    "yadmNm": "마음건강의원",
+                                    "addr": "서울 강남구 테스트로 1",
+                                    "telno": "02-000-0000",
+                                    "XPos": "127.0401",
+                                    "YPos": "37.5018",
+                                }]
+                            }
+                        }
+                    }
+                }
+
+        with patch.dict("os.environ", {
+            "HIRA_API_KEY": "hira-key",
+            "HIRA_API_ENDPOINT": "https://example.test/hira",
+            "SCHOOLINFO_API_KEY": "",
+            "DATA_GO_KR_API_KEY": "",
+        }, clear=False), \
+            patch("backend.app.resources.httpx.get", return_value=Response()) as get, \
+            patch("backend.app.resources._save_to_cache"):
+            result = match(["정신건강의학과"], "A", "seoul_gangnam", "red")
+
+        params = get.call_args.kwargs["params"]
+        self.assertEqual(get.call_args.kwargs["timeout"], 15.0)
+        self.assertEqual(params["serviceKey"], "hira-key")
+        self.assertEqual(params["dgsbjtCd"], "03")
+        self.assertEqual(params["xPos"], 127.0396)
+        self.assertEqual(params["yPos"], 37.5012)
+        self.assertEqual(params["radius"], 3000)
+
+        external = result["external"][0]
+        item = external["items"][0]
+        self.assertEqual(external["source_mode"], "실시간")
+        self.assertEqual(item["name"], "마음건강의원")
+        self.assertEqual(item["lat"], 37.5018)
+        self.assertEqual(item["lng"], 127.0401)
+        self.assertEqual(item["group"], "medical")
+
+        point = next(p for p in result["map"]["points"] if p["name"] == "마음건강의원")
+        self.assertEqual(point["addr"], item["addr"])
+        self.assertEqual(point["tel"], item["tel"])
+        self.assertEqual(point["source"], item["source"])
+
 
 if __name__ == "__main__":
     unittest.main()

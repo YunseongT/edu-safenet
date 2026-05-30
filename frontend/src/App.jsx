@@ -14,6 +14,12 @@ const ROLES = ["교사", "업무담당교사", "관리자", "학생·학부모"]
 
 const isCrisis = (color) => color === "red" || color === "yellow";
 
+// AI 보조의견 정제 — 빈값·'특이사항 없음'은 표시 안 함.
+const cleanAdvisory = (a) => {
+  const t = (a || "").trim();
+  return t && !["특이사항 없음", "특이사항없음"].includes(t) ? t : "";
+};
+
 // 패키지 생성 버튼 + 안내문(교사 탭·업무담당교사 탭 공용).
 function PackageGen({ color, busy, onGen, note, children }) {
   return (
@@ -44,7 +50,7 @@ export default function App() {
   const [pkgBusy, setPkgBusy] = useState(false);
   const [history, setHistory] = useState({ journals: [], signals: [] });
   const [busy, setBusy] = useState(false);
-  const [advisory, setAdvisory] = useState("");  // 저장 시 LLM 보조의견(규칙이 놓친 의미·맥락)
+  const savingRef = useRef(false);  // 동기 잠금 — 연타·빠른 폴백 경로의 중복 저장 차단(state는 비동기라 부족).
   const [note, setNote] = useState("");          // 교사 소견(이의·동의·대응 사유) 입력
   const [noteSaving, setNoteSaving] = useState(false);
   const [cfg, setCfg] = useState({ llm_enabled: true, demo_mode: false });
@@ -81,7 +87,7 @@ export default function App() {
 
   // 신호+같은 인덱스 일지 → 뷰 객체(저장된 과거 신호 표시·소견 입력용).
   const sigToView = useCallback((sig, journal) => sig ? {
-    rule: sig.breakdown, llm_context: "", saved: true,
+    rule: sig.breakdown, llm_context: journal?.llm_context || "", saved: true,
     text: journal ? (journal.refined_text || journal.raw_text) : "",
     signalId: sig.id, teacher_note: sig.teacher_note, note_at: sig.note_at,
     school: sig.breakdown?.school?.key || school,
@@ -120,7 +126,6 @@ export default function App() {
   // sch·reg 인자로 프리셋을 명시 전달(변경 시 stale 클로저 방지).
   function onText(v, sch = school, reg = region) {
     setText(v);
-    if (advisory) setAdvisory("");
     clearTimeout(debounce.current);
     if (!v.trim()) { setLive(null); setEvidence(null); return; }
     debounce.current = setTimeout(async () => {
@@ -145,15 +150,14 @@ export default function App() {
   }
 
   async function save() {
-    if (!text.trim() || !studentId) return;
+    if (!text.trim() || !studentId || savingRef.current) return;
+    savingRef.current = true;
     setBusy(true);
     try {
-      const res = await api.addJournal(studentId, text, school);
-      const a = (res && res.llm_context || "").trim();
-      setAdvisory(a && !["특이사항 없음", "특이사항없음"].includes(a) ? a : "");
+      await api.addJournal(studentId, text, school);
       setText(""); setLive(null); setEvidence(null);
-      loadHistory(studentId);
-    } finally { setBusy(false); }
+      loadHistory(studentId);  // 저장된 신호+보조의견(llm_context)을 다시 불러 viewing에 반영.
+    } finally { setBusy(false); savingRef.current = false; }
   }
 
   const studentName = students.find((s) => s.id === studentId)?.display_name || "";
@@ -198,7 +202,7 @@ export default function App() {
       {!isAdmin && (
         <div className="bar">
           <label>학생&nbsp;
-            <select value={studentId ?? ""} onChange={(e) => { setStudentId(Number(e.target.value)); setAdvisory(""); }}>
+            <select value={studentId ?? ""} onChange={(e) => setStudentId(Number(e.target.value))}>
               {students.map((s) => <option key={s.id} value={s.id}>{s.display_name} · {s.token}</option>)}
             </select>
           </label>
@@ -259,6 +263,7 @@ export default function App() {
                     <div>
                       <div className="tl-text">{j.refined_text || j.raw_text}</div>
                       <div className="tl-meta">{j.created_at} · {history.signals[i]?.color} {history.signals[i]?.score}점
+                        {cleanAdvisory(j.llm_context) && <span className="note-flag"> · 🤖 AI 보조의견</span>}
                         {history.signals[i]?.teacher_note && <span className="note-flag"> · 📝 교사 소견</span>}</div>
                     </div>
                   </div>
@@ -269,12 +274,6 @@ export default function App() {
             <section className="col">
               <h2>위험도 신호등 {live ? "(라이브 입력)" : viewing?.saved ? "(저장된 최근 신호)" : "(라이브)"}</h2>
               <Signal result={live || viewing} />
-              {advisory && (
-                <div className="advisory">
-                  {advisory}
-                  <div className="advisory-note">※ AI 보조 의견 — 규칙이 놓쳤을 수 있는 맥락. 신호등 색은 규칙·사람이 최종 결정.</div>
-                </div>
-              )}
 
               {viewing?.saved && viewing.signalId != null && (
                 <div className="teacher-note">

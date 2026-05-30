@@ -50,3 +50,8 @@ def init_db() -> None:
                 conn.execute(f"ALTER TABLE signal_history ADD COLUMN {col}")
             except sqlite3.OperationalError:
                 pass  # 이미 존재
+        # AI 보조의견(규칙이 놓친 맥락) 영속화 — 새로고침·과거조회 시에도 항상 보이게.
+        try:
+            conn.execute("ALTER TABLE journal ADD COLUMN llm_context TEXT")
+        except sqlite3.OperationalError:
+            pass  # 이미 존재

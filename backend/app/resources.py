@@ -34,6 +34,9 @@ DEFAULT_REGION = "seoul_gangnam"
 STATIC_RETRIEVED_AT = "2026-05-18T09:00:00"
 SCHOOLINFO_ENDPOINT = "https://www.schoolinfo.go.kr/openApi.do"
 SCHOOLINFO_API_TYPE_COUNSELING = "61"
+HIRA_HOSP_ENDPOINT = "https://apis.data.go.kr/B551182/hospInfoServicev2"
+HIRA_PSYCHIATRY_SUBJECT_CODE = "03"
+HIRA_DEFAULT_RADIUS_M = 3000
 
 SCHOOLINFO_REGION_PARAMS = {
     "seoul_gangnam": {"sidoCode": "11", "sggCode": "11680"},
@@ -249,24 +252,26 @@ def _fetch_live(kind: str, center: list[float]) -> list[dict] | None:
     center 기준 거리순 정렬·근접 표시(지역 프리셋 반영)."""
     if kind == "정신건강의학과" and _key("HIRA_API_KEY"):
         try:
-            # HIRA 위치기반(radius) 호출은 서버측 계산이 느려 타임아웃 잦음.
-            # 빠른 기본 조회로 좌표 포함 다수를 받아 중심 기준 거리순 정렬·근접 5개.
             r = httpx.get(
-                os.getenv("HIRA_API_ENDPOINT",
-                          "https://apis.data.go.kr/B551182/hospInfoServicev2") +
-                "/getHospBasisList",
+                os.getenv("HIRA_API_ENDPOINT", HIRA_HOSP_ENDPOINT).rstrip("/") + "/getHospBasisList",
                 params={"serviceKey": _key("HIRA_API_KEY"), "_type": "json",
-                        "dgsbjtCd": "23", "numOfRows": 200},
-                timeout=9.0)
+                        "dgsbjtCd": HIRA_PSYCHIATRY_SUBJECT_CODE,
+                        "xPos": center[1], "yPos": center[0],
+                        "radius": HIRA_DEFAULT_RADIUS_M,
+                        "pageNo": 1, "numOfRows": 20},
+                timeout=15.0)
             r.raise_for_status()
-            items = r.json()["response"]["body"]["items"]["item"]
+            body = r.json()["response"]["body"]
+            items = body.get("items", {}).get("item", [])
             if isinstance(items, dict):
                 items = [items]
             scored = []
             for it in items:
-                if not (it.get("XPos") and it.get("YPos")):
+                lng_raw = it.get("XPos") or it.get("xPos")
+                lat_raw = it.get("YPos") or it.get("yPos")
+                if not (lng_raw and lat_raw):
                     continue
-                lat, lng = float(it["YPos"]), float(it["XPos"])
+                lat, lng = float(lat_raw), float(lng_raw)
                 scored.append((_dist_km(lat, lng, center), it, lat, lng))
             scored.sort(key=lambda t: t[0])
             live = [{"name": it.get("yadmNm"),
@@ -345,6 +350,8 @@ def match(case_resources: list[str], school: str, region: str | None = None, col
             for it in items:
                 if it.get("lat") and it.get("lng"):
                     points.append({"kind": kind, "name": it.get("name"),
+                                   "addr": it.get("addr"), "tel": it.get("tel"),
+                                   "source": it.get("source"),
                                    "lat": it["lat"], "lng": it["lng"],
                                    "group": it.get("group", "etc")})
     return {

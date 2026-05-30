@@ -71,15 +71,24 @@ def students():
 def journals(student_id: int):
     with get_conn() as conn:
         rows = conn.execute(
-            "SELECT id, raw_text, refined_text, created_at FROM journal "
+            "SELECT id, raw_text, refined_text, llm_context, created_at FROM journal "
             "WHERE student_id=? ORDER BY id", (student_id,)).fetchall()
         sigs = conn.execute(
             "SELECT id, score, color, breakdown_json, created_at, teacher_note, note_at "
             "FROM signal_history WHERE student_id=? ORDER BY id", (student_id,)).fetchall()
-    return {
-        "journals": [dict(r) for r in rows],
-        "signals": [{**dict(s), "breakdown": json.loads(s["breakdown_json"])} for s in sigs],
-    }
+    # 프런트는 journals[i] ↔ signals[i]를 같은 인덱스로 짝짓는다. id 순서가 어긋나도
+    # (백필·과거 orphan 등) 깨지지 않게, created_at으로 짝지어 journal과 같은 순서로 정렬해 반환.
+    by_time: dict[str, list[dict]] = {}
+    for s in sigs:
+        by_time.setdefault(s["created_at"], []).append(
+            {**dict(s), "breakdown": json.loads(s["breakdown_json"])})
+    journals, signals = [], []
+    for r in rows:
+        j = dict(r)
+        bucket = by_time.get(j["created_at"])
+        journals.append(j)
+        signals.append(bucket.pop(0) if bucket else None)
+    return {"journals": journals, "signals": signals}
 
 
 @app.get("/protocols")
@@ -132,9 +141,9 @@ def add_journal(body: JournalIn):
     now = datetime.now().isoformat(timespec="seconds")
     with get_conn() as conn:
         cur = conn.execute(
-            "INSERT INTO journal(student_id, raw_text, refined_text, created_at) "
-            "VALUES(?,?,?,?)",
-            (body.student_id, body.text, result["refined_text"], now))
+            "INSERT INTO journal(student_id, raw_text, refined_text, llm_context, created_at) "
+            "VALUES(?,?,?,?,?)",
+            (body.student_id, body.text, result["refined_text"], result["llm_context"], now))
         conn.execute(
             "INSERT INTO signal_history(student_id, score, color, breakdown_json, created_at) "
             "VALUES(?,?,?,?,?)",

@@ -26,6 +26,12 @@ function dot(group) {
   });
 }
 
+function esc(v) {
+  return String(v || "").replace(/[&<>"']/g, (ch) => ({
+    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
+  }[ch]));
+}
+
 export default function ResourceMap({ map }) {
   const ref = useRef(null);
   const inst = useRef(null);
@@ -60,7 +66,13 @@ export default function ResourceMap({ map }) {
     for (const p of pts) {
       latlngs.push([p.lat, p.lng]);
       L.marker([p.lat, p.lng], { icon: dot(p.group) })
-        .bindPopup(`<b>${p.name || p.kind}</b><br>${p.kind}`)
+        .bindPopup([
+          `<b>${esc(p.name || p.kind)}</b>`,
+          esc(p.kind),
+          p.addr ? esc(p.addr) : "",
+          p.tel ? `☎ ${esc(p.tel)}` : "",
+          p.source ? `<span class="law-src">${esc(p.source)}</span>` : "",
+        ].filter(Boolean).join("<br>"))
         .addTo(m);
     }
     if (latlngs.length > 1) m.fitBounds(latlngs, { padding: [40, 40], maxZoom: 15 });
