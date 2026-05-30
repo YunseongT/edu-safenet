@@ -273,37 +273,31 @@ export default function App() {
 
       {isAdmin && <Dashboard />}
 
-      {isStaff && (
-        <>
-          {isCrisis(lastColor) && lastText && (
-            <PackageGen color={lastColor} busy={pkgBusy} onGen={() => genPackage(lastText, lastSchool)}
-              note={`${studentName} 최근 저장 신호(${lastColor}) 기준 · ${lastColor === "red" ? "위원회 제출 자료 준비" : "담당자 사안 검토 자료 준비"}`} />
-          )}
-          <Protocols studentId={studentId} studentName={studentName} />
-        </>
-      )}
-
       {isGuardian && <Guardian studentId={studentId} studentName={studentName} />}
 
-      {canEdit && (
+      {(canEdit || isStaff) && (
         <>
           <main>
             <section className="col">
-              <h2>관찰 일지 입력 <small className="muted">· 교사: 기록·대응</small></h2>
-              <textarea value={text} onChange={(e) => onText(e.target.value)}
-                placeholder="예) 민수가 며칠째 결석하고, 죽고 싶다고 말했다..." rows={5} />
-              <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-                <button className="save" onClick={save} disabled={busy || !text.trim()}>
-                  {busy ? "저장 중..." : "일지 저장 (신호등 확정)"}
-                </button>
-                {busy && (
-                  <div className="muted" style={{ fontSize: "0.85rem", textAlign: "center" }}>
-                    {saveLoadingMsg}
+              {canEdit && (
+                <>
+                  <h2>관찰 일지 입력 <small className="muted">· 교사: 기록·대응</small></h2>
+                  <textarea value={text} onChange={(e) => onText(e.target.value)}
+                    placeholder="예) 민수가 며칠째 결석하고, 죽고 싶다고 말했다..." rows={5} />
+                  <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                    <button className="save" onClick={save} disabled={busy || !text.trim()}>
+                      {busy ? "저장 중..." : "일지 저장 (신호등 확정)"}
+                    </button>
+                    {busy && (
+                      <div className="muted" style={{ fontSize: "0.85rem", textAlign: "center" }}>
+                        {saveLoadingMsg}
+                      </div>
+                    )}
                   </div>
-                )}
-              </div>
+                </>
+              )}
 
-              <h3>누적 일지 / 신호 이력</h3>
+              <h3 style={{ marginTop: canEdit ? "1.5rem" : "0" }}>누적 일지 / 신호 이력 {isStaff && <small className="muted">· 업무담당교사 열람용</small>}</h3>
               <div className="timeline">
                 {history.journals.length === 0 && <div className="muted">아직 기록 없음</div>}
                 {history.journals.map((j, i) => (
@@ -333,14 +327,17 @@ export default function App() {
                 <div className="teacher-note">
                   <h3>교사 소견 <small className="muted">· 이의 / 동의 / 대응·무시 사유</small></h3>
                   <textarea value={note} onChange={(e) => setNote(e.target.value)} rows={3}
-                    placeholder="신호등 색은 규칙으로 고정됩니다. 교사의 판단·이의·후속 대응(또는 미대응) 사유를 기록으로 남기세요." />
+                    disabled={!canEdit}
+                    placeholder={canEdit ? "신호등 색은 규칙으로 고정됩니다. 교사의 판단·이의·후속 대응(또는 미대응) 사유를 기록으로 남기세요." : "담당 교사의 소견입니다."} />
                   <div className="tn-row">
-                    <button className="tn-save" disabled={noteSaving} onClick={saveNote}>
-                      {noteSaving ? "기록 중..." : "소견 기록"}
-                    </button>
+                    {canEdit && (
+                      <button className="tn-save" disabled={noteSaving} onClick={saveNote}>
+                        {noteSaving ? "기록 중..." : "소견 기록"}
+                      </button>
+                    )}
                     {viewing.note_at && <span className="muted">최근 기록: {viewing.note_at}</span>}
                   </div>
-                  <div className="advisory-note">※ 색을 바꾸지 않습니다. 교사 판단은 감사기록으로 남아 책임을 명확히 합니다.</div>
+                  {canEdit && <div className="advisory-note">※ 색을 바꾸지 않습니다. 교사 판단은 감사기록으로 남아 책임을 명확히 합니다.</div>}
                 </div>
               )}
             </section>
@@ -349,10 +346,12 @@ export default function App() {
           {shownColor && pkgText && (
             <PackageGen color={shownColor} busy={pkgBusy}
               onGen={() => genPackage(pkgText, live ? school : (viewing?.school || school))}
-              note="교사가 시스템·AI 의견을 검토한 뒤 도움이 필요하다고 판단하면 생성합니다.">
+              note={canEdit ? "교사가 시스템·AI 의견을 검토한 뒤 도움이 필요하다고 판단하면 생성합니다." : "사안 처리를 위해 필요한 패키지를 생성합니다."}>
               {evidence && <Evidence data={evidence} />}
             </PackageGen>
           )}
+          
+          {isStaff && <Protocols studentId={studentId} studentName={studentName} />}
         </>
       )}
 
