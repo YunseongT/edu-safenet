@@ -4,6 +4,17 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <script>
+      // 정적 배포본은 엣지에서 https를 강제하지 않아 http로도 접근된다.
+      // http로 열리면 (1) 브라우저 "안전하지 않음" 경고, (2) 페이지 origin이 http://…가 되어
+      // 백엔드 CORS 허용목록(https://…만 등록)에서 거부 → "백엔드 끊김"으로 보인다.
+      // 앱 로드 전 즉시 https로 전환해 두 문제를 동시에 막는다.
+      // localhost/127.0.0.1 개발 서버는 http만 제공하므로 예외(https 전환 시 접속 실패).
+      if (location.protocol === 'http:'
+          && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') {
+        location.replace(location.href.replace(/^http:/, 'https:'));
+      }
+    </script>
     <title>Edu-SafeNet · 위기학생 통합지원 데모</title>
   </head>
   <body>
