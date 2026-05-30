@@ -1,12 +1,15 @@
 # Root-level Cloudflare Workers config for native Workers Builds.
 # The GitHub Actions deployment still uses frontend/wrangler.toml.
-name = "safenetflare"
+# name은 대시보드 배포 worker명과 반드시 일치(불일치 시 CF 봇이 자동 PR 생성).
+name = "edu-safenet"
 compatibility_date = "2026-05-01"
 
 [assets]
 directory = "./frontend/dist"
 not_found_handling = "single-page-application"
 
+# 커스텀 도메인(두 존 다 동일 CF 계정) — wrangler가 DNS·인증서 자동 생성.
+# 대시보드 수동 추가는 deploy가 덮어쓰므로 여기 명시해야 병행 유지됨.
 [[routes]]
 pattern = "safenet.aieduflare.com"
 custom_domain = true
