@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { api } from "./api";
+import { api, onHealthChange } from "./api";
 import { REGIONS, DEFAULT_REGION } from "./core/resources";
 import { pkgLabel } from "./core/packageLabel";
 import Signal from "./Signal";
@@ -54,6 +54,7 @@ export default function App() {
   const [note, setNote] = useState("");          // 교사 소견(이의·동의·대응 사유) 입력
   const [noteSaving, setNoteSaving] = useState(false);
   const [cfg, setCfg] = useState({ llm_enabled: true, demo_mode: false });
+  const [isFallback, setIsFallback] = useState(false);
   const debounce = useRef(null);
 
   const isTeacher = role === "교사";        // 담임·상담 통합: 기록+대응
@@ -61,6 +62,10 @@ export default function App() {
   const isAdmin = role === "관리자";
   const isGuardian = role === "학생·학부모";
   const canEdit = isTeacher;
+
+  useEffect(() => {
+    onHealthChange(setIsFallback);
+  }, []);
 
   useEffect(() => {
     api.students()
@@ -190,8 +195,16 @@ export default function App() {
         </div>
       )}
       <header>
-        <h1>Edu-SafeNet <small>위기학생 통합지원 · 온프레미스 데모</small></h1>
-        <p className="tagline">위기 학생을 지키고, 교사를 보호하고, 교육공동체의 신뢰를 떠받친다.</p>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+          <div>
+            <h1>Edu-SafeNet <small>위기학생 통합지원 · 온프레미스 데모</small></h1>
+            <p className="tagline">위기 학생을 지키고, 교사를 보호하고, 교육공동체의 신뢰를 떠받친다.</p>
+          </div>
+          <div className="health-badge" style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "0.85rem", padding: "6px 10px", borderRadius: "20px", background: isFallback ? "#f0f0f0" : "#e6f4ea", color: isFallback ? "#666" : "#137333", fontWeight: 500 }}>
+            <span style={{ display: "inline-block", width: "8px", height: "8px", borderRadius: "50%", background: isFallback ? "#999" : "#34a853" }} />
+            {isFallback ? "정적 폴백 모드 (백엔드 끊김)" : "백엔드·LLM 정상 연결"}
+          </div>
+        </div>
         <div className="roles">
           {ROLES.map((r) => (
             <button key={r} className={role === r ? "on" : ""} onClick={() => setRole(r)}>{r}</button>

@@ -51,8 +51,47 @@ const staticApi = {
 
 // ---------- 백엔드(fetch) 구현 ----------
 const BASE = API_BASE || "http://localhost:8800";
-const jget = async (p) => { const r = await fetch(BASE + p); if (!r.ok) throw new Error(p); return r.json(); };
-const jpost = async (p, b) => { const r = await fetch(BASE + p, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(b) }); if (!r.ok) throw new Error(p); return r.json(); };
+
+// 헬스 상태 구독/발행
+export const healthState = { isFallback: false, listeners: [] };
+export const onHealthChange = (cb) => { healthState.listeners.push(cb); cb(healthState.isFallback); };
+const setFallbackState = (state) => {
+  if (healthState.isFallback !== state) {
+    healthState.isFallback = state;
+    healthState.listeners.forEach((cb) => cb(state));
+  }
+};
+
+const fetchWithTimeout = async (url, options, timeout = 60000) => {
+  const controller = new AbortController();
+  const id = setTimeout(() => controller.abort(), timeout);
+  try {
+    const res = await fetch(url, { ...options, signal: controller.signal });
+    clearTimeout(id);
+    return res;
+  } catch (e) {
+    clearTimeout(id);
+    throw e;
+  }
+};
+
+const fetchWithRetry = async (url, options, retries = 1) => {
+  for (let i = 0; i <= retries; i++) {
+    try {
+      const r = await fetchWithTimeout(url, options);
+      if (!r.ok) throw new Error(url);
+      setFallbackState(false);
+      return await r.json();
+    } catch (e) {
+      if (i === retries) throw e;
+      await new Promise(resolve => setTimeout(resolve, 1000));
+    }
+  }
+};
+
+const jget = async (p) => fetchWithRetry(BASE + p);
+const jpost = async (p, b) => fetchWithRetry(BASE + p, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(b) });
+
 const backendApi = {
   students: () => jget("/students"),
   schools: () => jget("/schools"),
@@ -72,8 +111,14 @@ function withFallback(primary, fallback) {
   const out = {};
   for (const k of Object.keys(primary)) {
     out[k] = async (...args) => {
-      try { return await primary[k](...args); }
-      catch (e) { console.warn(`backend ${k} 실패 → core 폴백`, e); return fallback[k](...args); }
+      try { 
+        return await primary[k](...args); 
+      }
+      catch (e) { 
+        console.warn(`backend ${k} 실패 → core 폴백`, e); 
+        setFallbackState(true);
+        return fallback[k](...args); 
+      }
     };
   }
   return out;
