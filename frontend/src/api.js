@@ -62,7 +62,7 @@ const setFallbackState = (state) => {
   }
 };
 
-const fetchWithTimeout = async (url, options, timeout = 60000) => {
+const fetchWithTimeout = async (url, options, timeout = 120000) => {
   const controller = new AbortController();
   const id = setTimeout(() => controller.abort(), timeout);
   try {
@@ -76,14 +76,18 @@ const fetchWithTimeout = async (url, options, timeout = 60000) => {
 };
 
 const fetchWithRetry = async (url, options, retries = 1) => {
-  for (let i = 0; i <= retries; i++) {
+  // POST 요청(LLM 생성 등)은 재시도 시 서버에 중복 부하를 주므로 재시도하지 않음
+  const actualRetries = (options && options.method === "POST") ? 0 : retries;
+  
+  for (let i = 0; i <= actualRetries; i++) {
     try {
-      const r = await fetchWithTimeout(url, options);
+      // LLM 응답 대기를 위해 120초(120000ms) 타임아웃 적용
+      const r = await fetchWithTimeout(url, options, 120000);
       if (!r.ok) throw new Error(url);
       setFallbackState(false);
       return await r.json();
     } catch (e) {
-      if (i === retries) throw e;
+      if (i === actualRetries) throw e;
       await new Promise(resolve => setTimeout(resolve, 1000));
     }
   }
