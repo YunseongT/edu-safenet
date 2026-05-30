@@ -3,7 +3,18 @@ export function dashboardStats() {
     source_type: "seed",
     source_name: "KEDI/KESS 데모 기준 통계",
     retrieved_at: "2026-05-18T09:00:00",
-    stale_reason: "현재 데모는 외부 통계 API를 호출하지 않고 기획 기준 시드 통계를 사용함",
+    stale_reason: "위험지수·추이·학급위험은 신호등 모델 집계(기획 기준). 학교 메타는 NEIS 실데이터로 앵커.",
+    // 정적 배포본은 빌드타임 NEIS 스냅샷. 라이브 백엔드(/dashboard)는 호출 시점 실데이터로 대체.
+    school_meta: {
+      source_type: "snapshot",
+      source_name: "NEIS 교육정보 개방 포털(빌드 스냅샷)",
+      school_name: "개포중학교",
+      class_count: 35,
+      foundation: "공립",
+      location: "서울특별시 강남구 선릉로 9",
+      coedu: "남여공학",
+      stale_reason: "정적 배포 스냅샷 — 라이브 백엔드 연결 시 호출 시점 NEIS 실데이터로 대체",
+    },
     risk_index: {
       school: 0.62,
       regional_average: 0.45,

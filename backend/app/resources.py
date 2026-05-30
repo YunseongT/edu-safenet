@@ -37,7 +37,7 @@ SCHOOLINFO_API_TYPE_COUNSELING = "61"
 
 SCHOOLINFO_REGION_PARAMS = {
     "seoul_gangnam": {"sidoCode": "11", "sggCode": "11680"},
-    "gyeonggi_suwon": {"sidoCode": "41", "sggCode": "41110"},
+    "gyeonggi_suwon": {"sidoCode": "41", "sggCode": "41115"},  # 수원 팔달구(41110은 학교알리미 미존재 코드 → 0건)
     "daejeon_seo": {"sidoCode": "30", "sggCode": "30170"},
     "gangwon_chuncheon": {"sidoCode": "51", "sggCode": "51110"},
     "busan_haeundae": {"sidoCode": "26", "sggCode": "26350"},
@@ -163,8 +163,18 @@ def _schoolinfo_key() -> str | None:
     return os.getenv("SCHOOLINFO_API_KEY") or os.getenv("DATA_GO_KR_API_KEY")
 
 
-def _schoolinfo_params(region: str) -> dict:
+def _schoolinfo_params(region: str, school: str | None = None) -> dict:
     params = SCHOOLINFO_REGION_PARAMS.get(region, SCHOOLINFO_REGION_PARAMS[DEFAULT_REGION]).copy()
+    # 데모 학교를 특정 코드에 고정한 경우, 그 학교가 속한 지역으로 조회(UI region과 무관).
+    if school:
+        sido = os.getenv(f"SCHOOLINFO_{school}_SIDO_CODE")
+        sgg = os.getenv(f"SCHOOLINFO_{school}_SGG_CODE")
+        if sido and sgg:
+            params["sidoCode"], params["sggCode"] = sido, sgg
+        knd = os.getenv(f"SCHOOLINFO_{school}_SCHUL_KND_CODE")
+        if knd:
+            params["schulKndCode"] = knd
+            return params
     params["schulKndCode"] = os.getenv("SCHOOLINFO_SCHUL_KND_CODE", "03")
     return params
 
@@ -177,13 +187,10 @@ def _select_schoolinfo_row(rows: list[dict], school: str) -> dict | None:
     code = os.getenv(f"SCHOOLINFO_{school}_SCHUL_CODE") or os.getenv("SCHOOLINFO_SCHUL_CODE")
     name = os.getenv(f"SCHOOLINFO_{school}_SCHUL_NM") or os.getenv("SCHOOLINFO_SCHUL_NM")
     if code:
-        found = next((r for r in rows if str(r.get("SCHUL_CODE")) == code), None)
-        if found:
-            return found
+        return next((r for r in rows if str(r.get("SCHUL_CODE")) == code), None)
     if name:
-        found = next((r for r in rows if name in str(r.get("SCHUL_NM", ""))), None)
-        if found:
-            return found
+        return next((r for r in rows if name in str(r.get("SCHUL_NM", ""))), None)
+    # 코드·이름 미지정(범용 데모) 시에만 첫 행. 지정했는데 못 찾으면 None → 프리셋 폴백.
     return rows[0] if rows else None
 
 
@@ -195,8 +202,9 @@ def _fetch_schoolinfo_internal(school: str, region: str) -> dict | None:
         data = {
             "apiKey": key,
             "apiType": SCHOOLINFO_API_TYPE_COUNSELING,
-            "pbanYr": os.getenv("SCHOOLINFO_PBAN_YR", str(datetime.now().year)),
-            **_schoolinfo_params(region),
+            # 당해년도 공시는 미확정(값 뒤집힘·필드 누락) → 직전 완료 연도 기본.
+            "pbanYr": os.getenv("SCHOOLINFO_PBAN_YR", str(datetime.now().year - 1)),
+            **_schoolinfo_params(region, school),
         }
         r = httpx.post(os.getenv("SCHOOLINFO_API_ENDPOINT", SCHOOLINFO_ENDPOINT), data=data, timeout=8.0)
         r.raise_for_status()

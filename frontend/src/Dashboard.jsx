@@ -19,6 +19,17 @@ export default function Dashboard() {
         <>
           <div className="stat-source">{stats.source_name} · {stats.source_type} · {stats.stale_reason}</div>
 
+          {stats.school_meta && (
+            <div className="school-meta">
+              <strong>{stats.school_meta.school_name}</strong>
+              {" · "}{stats.school_meta.foundation}
+              {stats.school_meta.coedu ? ` · ${stats.school_meta.coedu}` : ""}
+              {" · "}{stats.school_meta.class_count}학급
+              {stats.school_meta.location ? ` · ${stats.school_meta.location}` : ""}
+              <span className="meta-src"> · {stats.school_meta.source_name} ({stats.school_meta.source_type})</span>
+            </div>
+          )}
+
           <div className="risk-index">
             <div>
               <span>우리학교</span>
