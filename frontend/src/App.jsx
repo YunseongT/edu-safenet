@@ -20,8 +20,40 @@ const cleanAdvisory = (a) => {
   return t && !["특이사항 없음", "특이사항없음"].includes(t) ? t : "";
 };
 
+// 패키지 생성 시 로딩 메시지
+const PKG_MESSAGES = [
+  "관련 법령 및 지침을 확인하는 중입니다...",
+  "학교를 중심으로 주변의 가용 자원을 확인하는 중입니다...",
+  "초동 대처 가이드라인을 작성하는 중입니다...",
+  "제출용 사안 보고서 초안을 구성하는 중입니다..."
+];
+
+// 일지 저장 시 로딩 메시지
+const SAVE_MESSAGES = [
+  "일지를 분석하며 관련 키워드들을 점검하는 중입니다...",
+  "일지의 내용에 따라 가정 내 상황을 유추하는 중입니다...",
+  "위험 요인을 종합하여 신호등을 확정하는 중입니다...",
+  "교사를 위한 AI 보조 의견을 생성하는 중입니다..."
+];
+
+function useLoadingMessage(isBusy, messages, interval = 2500) {
+  const [index, setIndex] = useState(0);
+  useEffect(() => {
+    if (!isBusy) {
+      setIndex(0);
+      return;
+    }
+    const timer = setInterval(() => {
+      setIndex((prev) => (prev + 1) % messages.length);
+    }, interval);
+    return () => clearInterval(timer);
+  }, [isBusy, messages, interval]);
+  return messages[index];
+}
+
 // 패키지 생성 버튼 + 안내문(교사 탭·업무담당교사 탭 공용).
 function PackageGen({ color, busy, onGen, note, children }) {
+  const loadingMsg = useLoadingMessage(busy, PKG_MESSAGES);
   return (
     <div className="evidence-wrap">
       <button className={`pkg-btn${busy ? " busy" : ""}`} disabled={busy} onClick={onGen}>
@@ -29,7 +61,7 @@ function PackageGen({ color, busy, onGen, note, children }) {
         {busy ? "패키지 생성 중…" : pkgLabel(color) + " 생성"}
       </button>
       <div className="muted" style={{ marginTop: 6 }}>
-        {busy ? "법령·자원·보고서 초안을 모으는 중입니다. 잠시만 기다려 주세요." : note}
+        {busy ? loadingMsg : note}
       </div>
       {children}
     </div>
@@ -56,6 +88,8 @@ export default function App() {
   const [cfg, setCfg] = useState({ llm_enabled: true, demo_mode: false });
   const [isFallback, setIsFallback] = useState(false);
   const debounce = useRef(null);
+  
+  const saveLoadingMsg = useLoadingMessage(busy, SAVE_MESSAGES);
 
   const isTeacher = role === "교사";        // 담임·상담 통합: 기록+대응
   const isStaff = role === "업무담당교사";   // 생활부장 등: 행동지침
@@ -258,9 +292,16 @@ export default function App() {
               <h2>관찰 일지 입력 <small className="muted">· 교사: 기록·대응</small></h2>
               <textarea value={text} onChange={(e) => onText(e.target.value)}
                 placeholder="예) 민수가 며칠째 결석하고, 죽고 싶다고 말했다..." rows={5} />
-              <button className="save" onClick={save} disabled={busy || !text.trim()}>
-                {busy ? "저장 중..." : "일지 저장 (신호등 확정)"}
-              </button>
+              <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                <button className="save" onClick={save} disabled={busy || !text.trim()}>
+                  {busy ? "저장 중..." : "일지 저장 (신호등 확정)"}
+                </button>
+                {busy && (
+                  <div className="muted" style={{ fontSize: "0.85rem", textAlign: "center" }}>
+                    {saveLoadingMsg}
+                  </div>
+                )}
+              </div>
 
               <h3>누적 일지 / 신호 이력</h3>
               <div className="timeline">
