@@ -8,5 +8,9 @@ directory = "./frontend/dist"
 not_found_handling = "single-page-application"
 
 [[routes]]
+pattern = "safenet.aieduflare.com"
+custom_domain = true
+
+[[routes]]
 pattern = "safenet.yunseongt.com"
 custom_domain = true

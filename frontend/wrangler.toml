@@ -7,7 +7,12 @@ compatibility_date = "2026-05-01"
 directory = "./dist"
 not_found_handling = "single-page-application"
 
-# 커스텀 도메인(yunseongt.com 존이 동일 CF 계정) — wrangler가 DNS·인증서 자동 생성.
+# 커스텀 도메인(두 존 다 동일 CF 계정) — wrangler가 DNS·인증서 자동 생성.
+# 대시보드 수동 추가는 deploy가 덮어쓰므로 여기 명시해야 병행 유지됨.
+[[routes]]
+pattern = "safenet.aieduflare.com"
+custom_domain = true
+
 [[routes]]
 pattern = "safenet.yunseongt.com"
 custom_domain = true
