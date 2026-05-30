@@ -57,7 +57,7 @@ export default function Guardian({ studentId, studentName }) {
       </div>
 
       <button className="g-correct" onClick={() => setAsked(true)} disabled={asked}>
-        {asked ? "정정 청구가 접수되었습니다 (담당 교사 검토 예정)" : "기록 정정 청구하기"}
+        {asked ? "상담 요청이 접수되었습니다 (담당 교사가 확인 후 연락 예정입니다)" : "담당 교사에게 상담 요청하기"}
       </button>
     </div>
   );
