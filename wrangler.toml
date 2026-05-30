@@ -1,7 +1,7 @@
 # Root-level Cloudflare Workers config for native Workers Builds.
 # The GitHub Actions deployment still uses frontend/wrangler.toml.
 # name은 대시보드 배포 worker명과 반드시 일치(불일치 시 CF 봇이 자동 PR 생성).
-name = "edu-safenet"
+name = "safenetflare"
 compatibility_date = "2026-05-01"
 
 [assets]
