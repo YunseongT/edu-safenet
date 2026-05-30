@@ -1,0 +1,35 @@
+name: CI
+
+# 전체 테스트 게이트 — push(master)·PR에서 py↔js 엔진 패리티 + node/py 단위테스트 전부 실행.
+# deploy.yml은 별도(배포 전 parity만 빠르게 확인). 여기서 회귀를 폭넓게 막는다.
+on:
+  push:
+    branches: [master]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: JS 엔진 패리티 (py↔js 드리프트)
+        run: node tests/parity.mjs
+
+      - name: Node 단위테스트
+        run: for t in tests/*.test.mjs; do echo "--- $t ---"; node "$t"; done
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Python 테스트 의존성(테스트 전용)
+        run: pip install httpx python-dotenv
+
+      - name: Python 단위테스트
+        run: python -m unittest tests.test_dashboard_stats tests.test_resource_metadata tests.test_report_verify
